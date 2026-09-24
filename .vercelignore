@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.git/
+.gitignore
+.venv/
+env/
+venv/
+tests/
+data/
+*.db
+*.sqlite3
+*.log
+scratch/
+benchmark.py
