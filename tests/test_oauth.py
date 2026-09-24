@@ -108,3 +108,47 @@ def test_oauth_login_upload_and_list_owned_files():
     assert file_entry is not None
     assert file_entry["original_filename"] == "quantum_secret.pdf"
     assert "encrypted_blob" not in file_entry
+
+
+def test_google_oauth_login_redirect_and_config():
+    """Verify Google OAuth config and /api/auth/oauth/google/login redirect URL."""
+    from fastapi.testclient import TestClient
+    from app.main import app
+
+    client = TestClient(app, follow_redirects=False)
+
+    # 1. Config endpoint
+    config_resp = client.get("/api/auth/oauth/config")
+    assert config_resp.status_code == 200
+    cfg = config_resp.json()
+    assert "google_client_id" in cfg
+    assert cfg["has_google_configured"] is True
+
+    # 2. Login endpoint redirects to accounts.google.com
+    login_resp = client.get("/api/auth/oauth/google/login")
+    assert login_resp.status_code == 307
+    location = login_resp.headers.get("location")
+    assert location is not None
+    assert "accounts.google.com/o/oauth2/v2/auth" in location
+    assert "client_id=" in location
+    assert "redirect_uri=" in location
+    assert "scope=" in location
+
+
+def test_google_oauth_callback_error_handling():
+    """Verify that Google OAuth callback gracefully handles error codes and missing codes."""
+    from fastapi.testclient import TestClient
+    from app.main import app
+
+    client = TestClient(app, follow_redirects=False)
+
+    # Callback with user cancellation / error
+    err_resp = client.get("/api/auth/oauth/google/callback?error=access_denied")
+    assert err_resp.status_code == 307
+    assert "/?auth_error=" in err_resp.headers.get("location")
+
+    # Callback with missing code
+    missing_resp = client.get("/api/auth/oauth/google/callback")
+    assert missing_resp.status_code == 307
+    assert "/?auth_error=" in missing_resp.headers.get("location")
+

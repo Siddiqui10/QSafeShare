@@ -1,5 +1,12 @@
-from fastapi import APIRouter, HTTPException, Depends, Header, Query
+import os
+import json
+import time
+import base64
+import urllib.request
+import urllib.parse
 from typing import Optional, List, Dict, Any
+from fastapi import APIRouter, HTTPException, Depends, Header, Query, Request
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from app.models.schemas import UserRegisterRequest, UserLoginRequest, UserResponse, KeyVaultResponse
 from app.services.auth_service import AuthService
@@ -144,6 +151,185 @@ def get_oauth_config():
     }
 
 
+def _get_google_redirect_uri(request: Request) -> str:
+    """Determine the Google OAuth redirect URI dynamically based on request headers or config."""
+    configured_uri = os.environ.get("GOOGLE_REDIRECT_URI", "").strip()
+    if configured_uri:
+        return configured_uri
+
+    proto = request.headers.get("x-forwarded-proto")
+    if not proto:
+        proto = request.url.scheme or "https"
+
+    host = request.headers.get("x-forwarded-host")
+    if not host:
+        host = request.headers.get("host") or request.url.netloc
+
+    if not host:
+        host = "localhost:8000"
+
+    return f"{proto}://{host}/api/auth/oauth/google/callback"
+
+
+@router.get("/oauth/google/login")
+def oauth_google_login(request: Request):
+    """Initiate Google OAuth 2.0 Authorization Code Flow.
+    Redirects user to Google's consent screen.
+    """
+    if not GOOGLE_CLIENT_ID:
+        return RedirectResponse(
+            url="/?auth_error=" + urllib.parse.quote("Google OAuth is not configured on this server. Please set GOOGLE_CLIENT_ID."),
+            status_code=307,
+        )
+
+    redirect_uri = _get_google_redirect_uri(request)
+
+    # Encode redirect_uri and timestamp in state to ensure 100% exact match on callback
+    state_payload = json.dumps({"redirect_uri": redirect_uri, "ts": time.time()})
+    state = base64.urlsafe_b64encode(state_payload.encode()).decode()
+
+    auth_params = {
+        "client_id": GOOGLE_CLIENT_ID,
+        "redirect_uri": redirect_uri,
+        "response_type": "code",
+        "scope": "openid email profile",
+        "access_type": "offline",
+        "prompt": "select_account",
+        "state": state,
+    }
+    auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(auth_params)
+    return RedirectResponse(url=auth_url, status_code=307)
+
+
+@router.get("/oauth/google/callback")
+def oauth_google_callback(
+    request: Request,
+    code: Optional[str] = Query(None),
+    error: Optional[str] = Query(None),
+    state: Optional[str] = Query(None),
+):
+    """Handle Google OAuth 2.0 callback redirect.
+    Exchanges code for tokens, retrieves user profile, creates session, and redirects to dashboard.
+    """
+    if error:
+        return RedirectResponse(
+            url=f"/?auth_error={urllib.parse.quote(f'Google sign-in canceled or failed: {error}')}",
+            status_code=307,
+        )
+
+    if not code:
+        return RedirectResponse(
+            url=f"/?auth_error={urllib.parse.quote('Missing authorization code from Google.')}",
+            status_code=307,
+        )
+
+    # Recover the exact redirect_uri from state
+    redirect_uri = None
+    if state:
+        try:
+            state_data = json.loads(base64.urlsafe_b64decode(state.encode()).decode())
+            redirect_uri = state_data.get("redirect_uri")
+        except Exception:
+            pass
+
+    if not redirect_uri:
+        redirect_uri = _get_google_redirect_uri(request)
+
+    # Exchange authorization code for tokens
+    token_url = "https://oauth2.googleapis.com/token"
+    token_payload = urllib.parse.urlencode({
+        "code": code,
+        "client_id": GOOGLE_CLIENT_ID,
+        "client_secret": GOOGLE_CLIENT_SECRET,
+        "redirect_uri": redirect_uri,
+        "grant_type": "authorization_code",
+    }).encode("utf-8")
+
+    try:
+        req = urllib.request.Request(
+            token_url,
+            data=token_payload,
+            headers={
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Accept": "application/json",
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=10.0) as resp:
+            token_data = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as http_err:
+        try:
+            err_body = http_err.read().decode("utf-8")
+            err_json = json.loads(err_body)
+            err_desc = err_json.get("error_description", err_json.get("error", str(http_err)))
+        except Exception:
+            err_desc = str(http_err)
+        return RedirectResponse(
+            url=f"/?auth_error={urllib.parse.quote(f'Google token exchange error: {err_desc}')}",
+            status_code=307,
+        )
+    except Exception as e:
+        return RedirectResponse(
+            url=f"/?auth_error={urllib.parse.quote(f'Google connection error: {str(e)}')}",
+            status_code=307,
+        )
+
+    access_token = token_data.get("access_token")
+    id_token = token_data.get("id_token")
+
+    email = None
+    full_name = None
+    oauth_id = None
+
+    # Fetch user profile using access_token
+    if access_token:
+        try:
+            userinfo_req = urllib.request.Request(
+                "https://www.googleapis.com/oauth2/v3/userinfo",
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
+            with urllib.request.urlopen(userinfo_req, timeout=10.0) as resp:
+                user_info = json.loads(resp.read().decode("utf-8"))
+                email = user_info.get("email")
+                full_name = user_info.get("name") or user_info.get("given_name")
+                oauth_id = user_info.get("sub")
+        except Exception:
+            pass
+
+    # Fallback to inspecting id_token if userinfo didn't resolve email
+    if (not email or not oauth_id) and id_token:
+        try:
+            tokeninfo_req = f"https://oauth2.googleapis.com/tokeninfo?id_token={id_token}"
+            with urllib.request.urlopen(tokeninfo_req, timeout=10.0) as resp:
+                token_info = json.loads(resp.read().decode("utf-8"))
+                email = email or token_info.get("email")
+                full_name = full_name or token_info.get("name")
+                oauth_id = oauth_id or token_info.get("sub")
+        except Exception:
+            pass
+
+    if not email:
+        return RedirectResponse(
+            url=f"/?auth_error={urllib.parse.quote('Could not retrieve user email from Google.')}",
+            status_code=307,
+        )
+
+    try:
+        user = AuthService.authenticate_oauth(
+            provider="google",
+            email=email,
+            full_name=full_name or email.split("@")[0],
+            oauth_id=oauth_id,
+        )
+        session_token = AuthService.create_token_for_user(user)
+        return RedirectResponse(url=f"/?token={session_token}", status_code=307)
+    except Exception as e:
+        return RedirectResponse(
+            url=f"/?auth_error={urllib.parse.quote(f'Failed to register/authenticate user: {str(e)}')}",
+            status_code=307,
+        )
+
+
 @router.post("/oauth/google")
 def login_google(req: OAuthLoginRequest):
     """Authenticate via Google Sign-In with auto-provisioned ML-KEM-768 keypair."""
@@ -154,7 +340,6 @@ def login_google(req: OAuthLoginRequest):
     # If Google credential (id_token) is provided and client ID is configured, verify it
     if req.credential:
         try:
-            import urllib.request, json
             req_url = f"https://oauth2.googleapis.com/tokeninfo?id_token={req.credential}"
             with urllib.request.urlopen(req_url, timeout=5.0) as resp:
                 token_data = json.loads(resp.read().decode())

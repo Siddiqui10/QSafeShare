@@ -82,11 +82,17 @@ function formatDate(isoStr) {
 // App Initialization
 document.addEventListener("DOMContentLoaded", async () => {
   initAuthUI();
-  initGoogleIdentityServices();
   initNavigation();
   initModals();
   initRecipientSearch();
 
+  // 1. Process URL params if returning from Google OAuth redirect (?token=... or ?auth_error=...)
+  const handled = await handleUrlAuthParams();
+  if (handled) {
+    return;
+  }
+
+  // 2. Otherwise verify existing stored session or display login overlay
   if (AppState.token) {
     await checkSession();
   } else {
@@ -94,84 +100,55 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 });
 
-window.addEventListener("load", () => {
-  initGoogleIdentityServices();
-});
-
-// Google OAuth Configuration
-let currentOAuthProvider = "google";
-let cachedGoogleClientId = "";
-
-// Initialize Google Identity Services (GIS)
-async function initGoogleIdentityServices() {
-  if (!cachedGoogleClientId) {
-    try {
-      const cfg = await apiRequest("/api/auth/oauth/config");
-      if (cfg && cfg.google_client_id) {
-        cachedGoogleClientId = cfg.google_client_id;
-      }
-    } catch (_) {}
-  }
-
-  if (!cachedGoogleClientId) return;
-
-  if (window.google && google.accounts && google.accounts.id) {
-    try {
-      google.accounts.id.initialize({
-        client_id: cachedGoogleClientId,
-        callback: handleGoogleCredentialResponse,
-        auto_select: false,
-        cancel_on_tap_outside: true,
-      });
-
-      const btnContainer = document.getElementById("googleSignInDiv");
-      const btnDirect = document.getElementById("btnGoogleSignIn");
-      if (btnContainer) {
-        btnContainer.innerHTML = "";
-        google.accounts.id.renderButton(btnContainer, {
-          theme: "outline",
-          size: "large",
-          type: "standard",
-          shape: "rectangular",
-          text: "signin_with",
-          logo_alignment: "left",
-          width: 320,
-        });
-        // Once official button renders, hide fallback button to prevent duplicates
-        if (btnDirect) {
-          btnDirect.style.display = "none";
-        }
-      }
-    } catch (e) {
-      console.warn("Google Identity Services initialization:", e);
-    }
-  }
-}
-
-async function handleGoogleCredentialResponse(response) {
-  if (!response || !response.credential) return;
+// Redirect user directly to Google OAuth consent screen
+function redirectToGoogleLogin() {
   const statusEl = document.getElementById("oauthMainStatus");
   if (statusEl) {
     statusEl.style.display = "block";
-    statusEl.innerHTML = `⚡ Verifying Google account & provisioning ML-KEM-768 key vault...`;
+    statusEl.innerHTML = `⚡ Redirecting to Google Sign-In...`;
   }
-  try {
-    const data = await apiRequest("/api/auth/oauth/google", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        provider: "google",
-        credential: response.credential,
-      }),
-    });
+  window.location.href = "/api/auth/oauth/google/login";
+}
 
-    saveAccount("google", data.user.email, data.user.full_name);
-    handleAuthSuccess(data);
-    showToast(`Welcome, ${data.user.full_name}! (Google Authenticated)`, "success");
-  } catch (err) {
-    showToast(`Google Sign-In error: ${err.message}`, "error");
-    if (statusEl) statusEl.innerHTML = `<span style="color:var(--accent-rose);">${escapeHtml(err.message)}</span>`;
+// Handle OAuth tokens or error codes returned in URL query parameters
+async function handleUrlAuthParams() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const token = urlParams.get("token");
+  const authError = urlParams.get("auth_error");
+
+  if (authError) {
+    const errorMsg = decodeURIComponent(authError);
+    showToast(`Authentication failed: ${errorMsg}`, "error");
+    const statusEl = document.getElementById("oauthMainStatus");
+    if (statusEl) {
+      statusEl.style.display = "block";
+      statusEl.innerHTML = `<span style="color:var(--accent-rose);">Sign-In Error: ${escapeHtml(errorMsg)}</span>`;
+    }
+    window.history.replaceState({}, document.title, window.location.pathname);
+    return false;
   }
+
+  if (token) {
+    AppState.token = token;
+    localStorage.setItem("qsafeshare_token", token);
+    window.history.replaceState({}, document.title, window.location.pathname);
+    try {
+      const user = await apiRequest("/api/auth/me");
+      AppState.currentUser = user;
+      localStorage.setItem("qsafeshare_user", JSON.stringify(user));
+      saveAccount("google", user.email, user.full_name);
+      renderUserProfile();
+      hideAuthOverlay();
+      showToast(`Welcome, ${user.full_name}! (Google Authenticated)`, "success");
+      await refreshCurrentTabData();
+      startAuditStream();
+      return true;
+    } catch (e) {
+      console.error("Failed to establish session from OAuth token:", e);
+      signOutUser();
+    }
+  }
+  return false;
 }
 
 function getSavedAccounts(provider = "google") {
@@ -212,7 +189,7 @@ function removeSavedAccount(email, e) {
 
 function switchAccount() {
   signOutUser();
-  openOAuthModal("google");
+  showToast("Please choose an account to sign in.", "info");
 }
 
 function openOAuthModal(provider = "google") {
