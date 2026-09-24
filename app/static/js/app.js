@@ -107,6 +107,47 @@ function toggleEmailAuthSection() {
   }
 }
 
+function getSavedAccounts(provider = null) {
+  try {
+    const raw = localStorage.getItem("qsafeshare_saved_accounts");
+    if (!raw) return [];
+    const accounts = JSON.parse(raw);
+    return Array.isArray(accounts) ? accounts.filter(a => !provider || a.provider === provider) : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+function saveAccount(provider, email, fullName) {
+  try {
+    const accounts = getSavedAccounts();
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanName = fullName ? fullName.trim() : cleanEmail.split("@")[0];
+    const existingIndex = accounts.findIndex(a => a.email.toLowerCase() === cleanEmail);
+    const newAcc = { provider, email: cleanEmail, fullName: cleanName, lastLogin: new Date().toISOString() };
+    if (existingIndex >= 0) {
+      accounts[existingIndex] = newAcc;
+    } else {
+      accounts.unshift(newAcc);
+    }
+    localStorage.setItem("qsafeshare_saved_accounts", JSON.stringify(accounts.slice(0, 6)));
+  } catch (_) {}
+}
+
+function removeSavedAccount(email, e) {
+  if (e) e.stopPropagation();
+  try {
+    const accounts = getSavedAccounts().filter(a => a.email.toLowerCase() !== email.toLowerCase());
+    localStorage.setItem("qsafeshare_saved_accounts", JSON.stringify(accounts));
+    openOAuthModal(currentOAuthProvider);
+  } catch (_) {}
+}
+
+function switchAccount() {
+  signOutUser();
+  openOAuthModal("google");
+}
+
 function openOAuthModal(provider) {
   currentOAuthProvider = provider;
   const titleEl = document.getElementById("oauthModalTitle");
@@ -116,10 +157,15 @@ function openOAuthModal(provider) {
   const nameInput = document.getElementById("oauthCustomName");
   const errEl = document.getElementById("oauthErrorMsg");
   const quickArea = document.getElementById("oauthQuickProfiles");
+  const savedSection = document.getElementById("oauthSavedSection");
+  const emailLabel = document.getElementById("oauthEmailLabel");
+  const submitBtn = document.getElementById("btnSubmitOAuth");
 
   if (errEl) errEl.innerHTML = "";
   if (emailInput) emailInput.value = "";
   if (nameInput) nameInput.value = "";
+
+  const savedAccounts = getSavedAccounts(provider);
 
   if (provider === "google") {
     if (titleEl) titleEl.textContent = "Sign in with Google";
@@ -131,28 +177,11 @@ function openOAuthModal(provider) {
         <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
       </svg>
     `;
-    if (descEl) descEl.innerHTML = "Sign in to <strong>QSafeShare</strong> using your Google Account:";
-    if (emailInput) emailInput.placeholder = "huzaifa@gmail.com";
-    if (nameInput) nameInput.placeholder = "Huzaifa";
-
-    if (quickArea) {
-      quickArea.innerHTML = `
-        <button type="button" class="btn btn-secondary" style="display:flex; align-items:center; gap:0.75rem; justify-content:flex-start; padding:0.65rem 1rem;" onclick="loginWithOAuth('google', 'huzaifa@gmail.com', 'Huzaifa')">
-          <div style="width:28px; height:28px; border-radius:50%; background:#4285F4; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:0.8rem;">H</div>
-          <div style="text-align:left;">
-            <div style="font-weight:600; font-size:0.88rem; color:var(--text-main);">Huzaifa</div>
-            <div style="font-size:0.75rem; color:var(--text-dim);">huzaifa@gmail.com</div>
-          </div>
-        </button>
-        <button type="button" class="btn btn-secondary" style="display:flex; align-items:center; gap:0.75rem; justify-content:flex-start; padding:0.65rem 1rem;" onclick="loginWithOAuth('google', 'researcher@university.edu', 'Quantum Researcher')">
-          <div style="width:28px; height:28px; border-radius:50%; background:#34A853; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:0.8rem;">Q</div>
-          <div style="text-align:left;">
-            <div style="font-weight:600; font-size:0.88rem; color:var(--text-main);">Quantum Researcher</div>
-            <div style="font-size:0.75rem; color:var(--text-dim);">researcher@university.edu</div>
-          </div>
-        </button>
-      `;
-    }
+    if (descEl) descEl.innerHTML = "Sign in to <strong>QSafeShare</strong> with your Google account:";
+    if (emailLabel) emailLabel.textContent = "Google Email Address";
+    if (emailInput) emailInput.placeholder = "yourname@gmail.com";
+    if (nameInput) nameInput.placeholder = "Your Full Name";
+    if (submitBtn) submitBtn.textContent = "Sign In with Google";
   } else {
     if (titleEl) titleEl.textContent = "Sign in with Apple";
     if (iconEl) iconEl.innerHTML = `
@@ -161,79 +190,43 @@ function openOAuthModal(provider) {
       </svg>
     `;
     if (descEl) descEl.innerHTML = "Sign in to <strong>QSafeShare</strong> using your Apple ID:";
-    if (emailInput) emailInput.placeholder = "huzaifa@privaterelay.appleid.com";
-    if (nameInput) nameInput.placeholder = "Huzaifa";
+    if (emailLabel) emailLabel.textContent = "Apple ID / Email";
+    if (emailInput) emailInput.placeholder = "yourname@privaterelay.appleid.com";
+    if (nameInput) nameInput.placeholder = "Your Full Name";
+    if (submitBtn) submitBtn.textContent = "Sign In with Apple";
+  }
 
-    if (quickArea) {
-      quickArea.innerHTML = `
-        <button type="button" class="btn btn-secondary" style="display:flex; align-items:center; gap:0.75rem; justify-content:flex-start; padding:0.65rem 1rem;" onclick="loginWithOAuth('apple', 'huzaifa@privaterelay.appleid.com', 'Huzaifa')">
-          <div style="width:28px; height:28px; border-radius:50%; background:#000; border:1px solid #444; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:0.8rem;"></div>
-          <div style="text-align:left;">
-            <div style="font-weight:600; font-size:0.88rem; color:var(--text-main);">Huzaifa</div>
-            <div style="font-size:0.75rem; color:var(--text-dim);">huzaifa@privaterelay.appleid.com</div>
+  // Populate Saved Accounts
+  if (savedAccounts.length > 0 && quickArea && savedSection) {
+    savedSection.style.display = "block";
+    quickArea.innerHTML = savedAccounts.map(a => `
+      <div style="display:flex; align-items:center; justify-content:space-between; padding:0.65rem 0.85rem; border:1px solid var(--border-color); border-radius:var(--radius-md); background:var(--bg-secondary); cursor:pointer; transition:all 0.15s ease;" onclick="loginWithOAuth('${a.provider}', '${escapeHtml(a.email)}', '${escapeHtml(a.fullName)}')">
+        <div style="display:flex; align-items:center; gap:0.75rem;">
+          <div style="width:34px; height:34px; border-radius:50%; background:${a.provider === 'google' ? '#4285F4' : '#000'}; border:1px solid ${a.provider === 'google' ? '#3367D6' : '#444'}; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:0.9rem;">
+            ${escapeHtml(a.fullName.substring(0, 1).toUpperCase())}
           </div>
-        </button>
-        <button type="button" class="btn btn-secondary" style="display:flex; align-items:center; gap:0.75rem; justify-content:flex-start; padding:0.65rem 1rem;" onclick="loginWithOAuth('apple', 'researcher@icloud.com', 'Quantum Researcher')">
-          <div style="width:28px; height:28px; border-radius:50%; background:#000; border:1px solid #444; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:0.8rem;"></div>
           <div style="text-align:left;">
-            <div style="font-weight:600; font-size:0.88rem; color:var(--text-main);">Quantum Researcher</div>
-            <div style="font-size:0.75rem; color:var(--text-dim);">researcher@icloud.com</div>
+            <div style="font-weight:600; font-size:0.88rem; color:var(--text-main);">${escapeHtml(a.fullName)}</div>
+            <div style="font-size:0.75rem; color:var(--text-dim);">${escapeHtml(a.email)}</div>
           </div>
-        </button>
-      `;
-    }
+        </div>
+        <button type="button" class="btn btn-secondary btn-sm" style="font-size:0.7rem; padding:0.2rem 0.45rem; line-height:1;" title="Remove this saved account" onclick="removeSavedAccount('${escapeHtml(a.email)}', event)">✕</button>
+      </div>
+    `).join("");
+  } else if (savedSection) {
+    savedSection.style.display = "none";
   }
 
   openModal("oauthModal");
 }
 
-async function handleDirectOAuth(provider) {
-  const statusEl = document.getElementById("oauthMainStatus");
-  const googleBtn = document.getElementById("btnGoogleSignIn");
-  const appleBtn = document.getElementById("btnAppleSignIn");
-
-  if (statusEl) {
-    statusEl.style.display = "block";
-    statusEl.innerHTML = `<span style="color:var(--pqc-cyan);">Authenticating with ${provider === 'google' ? 'Google' : 'Apple'} Account & initializing ML-KEM-768 Vault...</span>`;
-  }
-  if (provider === 'google' && googleBtn) {
-    googleBtn.style.opacity = "0.7";
-    googleBtn.style.pointerEvents = "none";
-  }
-  if (provider === 'apple' && appleBtn) {
-    appleBtn.style.opacity = "0.7";
-    appleBtn.style.pointerEvents = "none";
-  }
-
-  const defaultEmail = provider === "google" ? "huzaifa@gmail.com" : "huzaifa@privaterelay.appleid.com";
-  const defaultName = "Huzaifa";
-
-  try {
-    await loginWithOAuth(provider, defaultEmail, defaultName);
-  } catch (err) {
-    if (statusEl) {
-      statusEl.style.display = "block";
-      statusEl.innerHTML = `<span style="color:var(--accent-rose);">${escapeHtml(err.message)}</span>`;
-    }
-  } finally {
-    if (googleBtn) {
-      googleBtn.style.opacity = "1";
-      googleBtn.style.pointerEvents = "auto";
-    }
-    if (appleBtn) {
-      appleBtn.style.opacity = "1";
-      appleBtn.style.pointerEvents = "auto";
-    }
-  }
-}
-
 async function loginWithOAuth(provider, email, fullName, oauthId = null) {
   const errEl = document.getElementById("oauthErrorMsg");
-  const statusEl = document.getElementById("oauthMainStatus");
-  if (errEl) errEl.innerHTML = `<span style="color:var(--pqc-cyan);">Authenticating and initializing ML-KEM-768 post-quantum key vault...</span>`;
-  if (statusEl) {
-    statusEl.style.display = "block";
-    statusEl.innerHTML = `<span style="color:var(--pqc-cyan);">Authenticating and initializing ML-KEM-768 post-quantum key vault...</span>`;
+  const submitBtn = document.getElementById("btnSubmitOAuth");
+  if (errEl) errEl.innerHTML = `<span style="color:var(--pqc-cyan);">Authenticating and provisioning ML-KEM-768 key vault...</span>`;
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Connecting...";
   }
 
   try {
@@ -242,23 +235,25 @@ async function loginWithOAuth(provider, email, fullName, oauthId = null) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         provider: provider,
-        email: email,
-        full_name: fullName,
+        email: email.trim(),
+        full_name: fullName.trim() || email.split("@")[0],
         oauth_id: oauthId || `${provider}_${Date.now()}`
       }),
     });
 
+    saveAccount(provider, data.user.email, data.user.full_name);
     closeModal("oauthModal");
     handleAuthSuccess(data);
     showToast(`Welcome, ${data.user.full_name}! (Signed in via ${provider.toUpperCase()})`, "success");
     return data;
   } catch (err) {
     if (errEl) errEl.innerHTML = `<span style="color:var(--accent-rose);">${escapeHtml(err.message)}</span>`;
-    if (statusEl) {
-      statusEl.style.display = "block";
-      statusEl.innerHTML = `<span style="color:var(--accent-rose);">${escapeHtml(err.message)}</span>`;
-    }
     throw err;
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = (provider === "google") ? "Sign In with Google" : "Sign In with Apple";
+    }
   }
 }
 
@@ -269,6 +264,7 @@ function handleOAuthCustomSubmit(e) {
   if (!email) return;
   loginWithOAuth(currentOAuthProvider, email, name);
 }
+
 
 function initAuthUI() {
   const signinTabBtn = document.getElementById("authTabSignIn");
@@ -999,12 +995,12 @@ function openCreateLinkModal(fileId) {
     nameEl.textContent = `${file.original_filename} (${formatBytes(file.file_size)})`;
   }
 
-  // Reset mode radios
+  // Reset mode radios: DEFAULT TO PASSWORD PROTECTION (Option 1)
   const modeRadios = document.querySelectorAll('input[name="linkProtectionMode"]');
   modeRadios.forEach(r => {
-    r.checked = (r.value === "ML_KEM");
+    r.checked = (r.value === "SECRET_KEY");
   });
-  toggleLinkProtectionMode("ML_KEM");
+  toggleLinkProtectionMode("SECRET_KEY");
 
   const provisionSelect = document.getElementById("mlkemKeyProvisionSelect");
   if (provisionSelect) provisionSelect.value = "auto";
@@ -1044,20 +1040,9 @@ function toggleLinkProtectionMode(mode) {
   const cardSecret = document.getElementById("modeCardSecret");
   const cardMlkem = document.getElementById("modeCardMlkem");
 
-  if (mode === "ML_KEM") {
-    if (mlkemOpts) mlkemOpts.style.display = "block";
-    if (secretOpts) secretOpts.style.display = "none";
-    if (cardMlkem) {
-      cardMlkem.style.borderColor = "var(--pqc-cyan)";
-      cardMlkem.style.background = "rgba(6, 182, 212, 0.08)";
-    }
-    if (cardSecret) {
-      cardSecret.style.borderColor = "var(--border-color)";
-      cardSecret.style.background = "var(--bg-secondary)";
-    }
-  } else {
-    if (mlkemOpts) mlkemOpts.style.display = "none";
+  if (mode === "SECRET_KEY") {
     if (secretOpts) secretOpts.style.display = "block";
+    if (mlkemOpts) mlkemOpts.style.display = "none";
     if (cardSecret) {
       cardSecret.style.borderColor = "var(--pqc-cyan)";
       cardSecret.style.background = "rgba(6, 182, 212, 0.08)";
@@ -1065,6 +1050,17 @@ function toggleLinkProtectionMode(mode) {
     if (cardMlkem) {
       cardMlkem.style.borderColor = "var(--border-color)";
       cardMlkem.style.background = "var(--bg-secondary)";
+    }
+  } else {
+    if (secretOpts) secretOpts.style.display = "none";
+    if (mlkemOpts) mlkemOpts.style.display = "block";
+    if (cardMlkem) {
+      cardMlkem.style.borderColor = "var(--pqc-cyan)";
+      cardMlkem.style.background = "rgba(6, 182, 212, 0.08)";
+    }
+    if (cardSecret) {
+      cardSecret.style.borderColor = "var(--border-color)";
+      cardSecret.style.background = "var(--bg-secondary)";
     }
   }
 }
@@ -1205,60 +1201,76 @@ async function handleCreateLinkSubmit(e) {
     const credential = data.private_key_pem || data.secret_key || "";
     const unifiedUrl = credential ? `${fullShareUrl}#key=${encodeURIComponent(credential)}` : fullShareUrl;
 
-    let keySectionHtml = "";
-    if (data.private_key_pem) {
-      keySectionHtml = `
-        <div style="margin-top:1rem;">
-          <label style="font-size:0.75rem; color:var(--pqc-cyan); font-weight:700;">NIST ML-KEM-768 Private Key (Recipient's Decryption Key):</label>
-          <div style="position:relative; margin-top:0.35rem;">
-            <textarea readonly rows="5" class="form-control" style="font-family:var(--font-mono); font-size:0.72rem; word-break:break-all;" id="genPrivateKeyPem">${escapeHtml(data.private_key_pem)}</textarea>
+    if (data.secret_key) {
+      resultArea.innerHTML = `
+        <div style="background:rgba(16, 185, 129, 0.08); border:1px solid rgba(16, 185, 129, 0.3); border-radius:var(--radius-md); padding:1.25rem;">
+          <div style="display:flex; align-items:center; gap:0.5rem; color:var(--accent-emerald); font-weight:700; margin-bottom:0.85rem; font-size:1.05rem;">
+            <span>✓</span> Password-Protected Link Created!
           </div>
-          <div style="display:flex; gap:0.5rem; margin-top:0.4rem; flex-wrap:wrap;">
-            <button type="button" class="btn btn-secondary btn-sm" onclick="copyGeneratedKey()">📋 Copy Private Key</button>
-            <button type="button" class="btn btn-secondary btn-sm" onclick="downloadLinkKeyFile()">💾 Save .pem File</button>
+
+          <div style="margin-bottom:0.85rem;">
+            <label style="font-size:0.78rem; color:var(--text-dim); font-weight:600;">1. Shareable File Link:</label>
+            <div style="display:flex; gap:0.5rem; margin-top:0.25rem;">
+              <input type="text" readonly class="form-control" style="font-family:var(--font-mono);" id="genShareUrlVal" value="${fullShareUrl}">
+              <button type="button" class="btn btn-secondary btn-sm" onclick="copyGeneratedLink()">📋 Copy Link</button>
+            </div>
           </div>
+
+          <div style="margin-bottom:1rem; padding:0.85rem; background:rgba(6, 182, 212, 0.08); border:1px solid rgba(6, 182, 212, 0.25); border-radius:var(--radius-md);">
+            <label style="font-size:0.8rem; color:var(--pqc-cyan); font-weight:700;">2. File Password (Set by you):</label>
+            <div style="display:flex; gap:0.5rem; margin-top:0.35rem;">
+              <input type="text" readonly class="form-control" style="font-family:var(--font-mono); font-weight:700; font-size:1.05rem; color:var(--text-main); background:var(--bg-primary);" id="genSecretKeyVal" value="${escapeHtml(data.secret_key)}">
+              <button type="button" class="btn btn-secondary btn-sm" onclick="copyGeneratedKey()">📋 Copy Password</button>
+            </div>
+            <small style="color:var(--text-dim); font-size:0.75rem; margin-top:0.35rem; display:block;">
+              Your recipient only needs this password to unlock & download the file.
+            </small>
+          </div>
+
+          <button type="button" class="btn btn-primary" style="width:100%; margin-bottom:0.5rem; font-weight:600; padding:0.7rem;" onclick="copyUnifiedLinkWithPassword()">
+            📋 Copy Link & Password Together (WhatsApp / Email Ready)
+          </button>
         </div>
       `;
-    } else if (data.secret_key) {
-      keySectionHtml = `
-        <div style="margin-top:1rem;">
-          <label style="font-size:0.75rem; color:var(--text-main); font-weight:700;">Secret Decryption Passphrase:</label>
-          <div style="display:flex; gap:0.5rem; margin-top:0.35rem;">
-            <input type="text" readonly class="form-control" style="font-family:var(--font-mono); font-weight:700;" id="genSecretKeyVal" value="${escapeHtml(data.secret_key)}">
-            <button type="button" class="btn btn-secondary btn-sm" onclick="copyGeneratedKey()">📋 Copy Key</button>
+    } else {
+      resultArea.innerHTML = `
+        <div style="background:rgba(16, 185, 129, 0.08); border:1px solid rgba(16, 185, 129, 0.3); border-radius:var(--radius-md); padding:1.25rem;">
+          <div style="display:flex; align-items:center; gap:0.5rem; color:var(--accent-emerald); font-weight:700; margin-bottom:0.75rem;">
+            <span>✓</span> Post-Quantum ML-KEM Link Created!
+          </div>
+
+          <div style="margin-bottom:0.75rem;">
+            <label style="font-size:0.75rem; color:var(--text-dim); font-weight:600;">Shareable Link:</label>
+            <div style="display:flex; gap:0.5rem; margin-top:0.25rem;">
+              <input type="text" readonly class="form-control" style="font-family:var(--font-mono);" id="genShareUrlVal" value="${fullShareUrl}">
+              <button type="button" class="btn btn-secondary btn-sm" onclick="copyGeneratedLink()">📋 Copy Link</button>
+            </div>
+          </div>
+
+          <div style="margin-top:1rem;">
+            <label style="font-size:0.75rem; color:var(--pqc-cyan); font-weight:700;">NIST ML-KEM-768 Private Key (Recipient's Decryption Key):</label>
+            <div style="position:relative; margin-top:0.35rem;">
+              <textarea readonly rows="5" class="form-control" style="font-family:var(--font-mono); font-size:0.72rem; word-break:break-all;" id="genPrivateKeyPem">${escapeHtml(data.private_key_pem || '')}</textarea>
+            </div>
+            <div style="display:flex; gap:0.5rem; margin-top:0.4rem; flex-wrap:wrap;">
+              <button type="button" class="btn btn-secondary btn-sm" onclick="copyGeneratedKey()">📋 Copy Private Key</button>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="downloadLinkKeyFile()">💾 Save .pem File</button>
+            </div>
+          </div>
+
+          <div style="margin-top:1rem; padding-top:0.75rem; border-top:1px dashed var(--border-color);">
+            <label style="font-size:0.75rem; color:var(--text-dim); font-weight:600;">Convenience: Unified One-Click Link (Key preloaded in URL fragment):</label>
+            <div style="display:flex; gap:0.5rem; margin-top:0.25rem;">
+              <input type="text" readonly class="form-control" style="font-family:var(--font-mono); font-size:0.75rem;" value="${unifiedUrl}">
+              <button type="button" class="btn btn-primary btn-sm" onclick="copyUnifiedLinkWithKey()">⚡ Copy 1-Click Link</button>
+            </div>
+            <p style="font-size:0.72rem; color:var(--text-dim); margin-top:0.4rem;">
+              Note: Fragment (#key=...) is processed by the recipient's browser locally to unlock the file!
+            </p>
           </div>
         </div>
       `;
     }
-
-    resultArea.innerHTML = `
-      <div style="background:rgba(16, 185, 129, 0.08); border:1px solid rgba(16, 185, 129, 0.3); border-radius:var(--radius-md); padding:1.25rem;">
-        <div style="display:flex; align-items:center; gap:0.5rem; color:var(--accent-emerald); font-weight:700; margin-bottom:0.75rem;">
-          <span>✓</span> Secure Sharing Link Generated Successfully!
-        </div>
-
-        <div style="margin-bottom:0.75rem;">
-          <label style="font-size:0.75rem; color:var(--text-dim); font-weight:600;">Shareable Link:</label>
-          <div style="display:flex; gap:0.5rem; margin-top:0.25rem;">
-            <input type="text" readonly class="form-control" style="font-family:var(--font-mono);" id="genShareUrlVal" value="${fullShareUrl}">
-            <button type="button" class="btn btn-secondary btn-sm" onclick="copyGeneratedLink()">📋 Copy Link</button>
-          </div>
-        </div>
-
-        ${keySectionHtml}
-
-        <div style="margin-top:1rem; padding-top:0.75rem; border-top:1px dashed var(--border-color);">
-          <label style="font-size:0.75rem; color:var(--text-dim); font-weight:600;">Convenience: Unified One-Click Link (Key preloaded in URL fragment):</label>
-          <div style="display:flex; gap:0.5rem; margin-top:0.25rem;">
-            <input type="text" readonly class="form-control" style="font-family:var(--font-mono); font-size:0.75rem;" value="${unifiedUrl}">
-            <button type="button" class="btn btn-primary btn-sm" onclick="copyUnifiedLinkWithKey()">⚡ Copy 1-Click Link</button>
-          </div>
-          <p style="font-size:0.72rem; color:var(--text-dim); margin-top:0.4rem;">
-            Note: Fragment (#key=...) is not sent to the server over HTTP; the browser processes it locally to unlock the file!
-          </p>
-        </div>
-      </div>
-    `;
 
     if (submitBtn) submitBtn.style.display = "none";
     showToast("Secure sharing link generated!", "success");
@@ -1282,9 +1294,20 @@ function copyGeneratedLink() {
 
 function copyGeneratedKey() {
   if (!currentGeneratedLinkData) return;
-  const key = currentGeneratedLinkData.private_key_pem || currentGeneratedLinkData.secret_key || "";
+  const key = currentGeneratedLinkData.secret_key || currentGeneratedLinkData.private_key_pem || "";
+  const isPass = Boolean(currentGeneratedLinkData.secret_key);
   navigator.clipboard.writeText(key).then(() => {
-    showToast("Cryptographic key copied to clipboard!", "success");
+    showToast(`${isPass ? 'Password' : 'Cryptographic key'} copied to clipboard!`, "success");
+  });
+}
+
+function copyUnifiedLinkWithPassword() {
+  if (!currentGeneratedLinkData) return;
+  const fullShareUrl = `${window.location.origin}${currentGeneratedLinkData.share_url}`;
+  const pass = currentGeneratedLinkData.secret_key || "";
+  const text = `📁 QSafeShare Secure File Access:\nLink: ${fullShareUrl}\nPassword: ${pass}`;
+  navigator.clipboard.writeText(text).then(() => {
+    showToast("Link & password copied to clipboard!", "success");
   });
 }
 

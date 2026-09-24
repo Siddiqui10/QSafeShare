@@ -25,7 +25,7 @@
 
       <!-- Primary Authentication: Google & Apple Sign-In -->
       <div class="oauth-buttons">
-        <button type="button" class="btn-oauth btn-google" id="btnGoogleSignIn" onclick="handleDirectOAuth('google')">
+        <button type="button" class="btn-oauth btn-google" id="btnGoogleSignIn" onclick="openOAuthModal('google')">
           <svg width="18" height="18" viewBox="0 0 24 24">
             <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"/>
             <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"/>
@@ -35,7 +35,7 @@
           <span>Continue with Google</span>
         </button>
 
-        <button type="button" class="btn-oauth btn-apple" id="btnAppleSignIn" onclick="handleDirectOAuth('apple')">
+        <button type="button" class="btn-oauth btn-apple" id="btnAppleSignIn" onclick="openOAuthModal('apple')">
           <svg width="18" height="18" viewBox="0 0 170 170" fill="currentColor">
             <path d="M150.37 130.25c-2.45 5.66-5.35 10.87-8.71 15.66-4.58 6.53-8.33 11.05-11.22 13.56-4.48 4.12-9.28 6.23-14.42 6.35-3.69 0-8.14-1.05-13.32-3.18-5.19-2.12-9.97-3.17-14.34-3.17-4.58 0-9.49 1.05-14.75 3.17-5.26 2.13-9.5 3.24-12.74 3.35-4.35.13-9.16-1.9-14.42-6.08-3.7-3.05-7.62-7.85-11.77-14.4-6.41-10.13-11.36-21.57-14.85-34.33-3.48-12.75-5.23-24.81-5.23-36.19 0-14.7 3.59-26.87 10.77-36.5 7.18-9.63 16.32-14.51 27.42-14.64 4.58 0 9.8 1.2 15.67 3.6 5.88 2.4 9.47 3.66 10.78 3.78 1.74-.24 5.56-1.58 11.46-4.02 5.9-2.44 10.7-3.54 14.41-3.3 10.66.44 19.34 4.3 26.04 11.58-9.37 5.66-14.06 13.72-14.06 24.18 0 7.73 2.72 14.26 8.17 19.6 5.44 5.34 12.08 8.38 19.92 9.14-2.18 6.53-4.9 13.06-8.16 19.6zm-29.62-111.97c0 4.9-1.31 9.7-3.92 14.4-2.61 4.7-6.2 8.4-10.77 11.1-1.31-4.47-1.42-8.93-.33-13.39 1.1-4.46 3.16-8.71 6.1-12.74 3.05-4.14 6.64-7.29 10.78-9.47 4.14-2.18 8.05-3.37 11.75-3.59.54 4.47.54 9.03-.33 13.69z"/>
           </svg>
@@ -44,11 +44,6 @@
       </div>
 
       <div id="oauthMainStatus" style="display:none; font-size:0.8rem; text-align:center; margin-bottom:0.75rem; padding:0.4rem; border-radius:var(--radius-sm); background:rgba(6, 182, 212, 0.1);"></div>
-
-      <div style="display:flex; justify-content:center; gap:1.25rem; font-size:0.76rem; margin-top:-0.25rem; margin-bottom:0.9rem;">
-        <a href="javascript:void(0)" onclick="openOAuthModal('google')" style="color:var(--text-dim); text-decoration:none; border-bottom:1px dotted var(--text-dim);">👤 Choose Google Account</a>
-        <a href="javascript:void(0)" onclick="openOAuthModal('apple')" style="color:var(--text-dim); text-decoration:none; border-bottom:1px dotted var(--text-dim);">🍎 Choose Apple ID</a>
-      </div>
 
       <div style="background:rgba(6, 182, 212, 0.08); border:1px solid rgba(6, 182, 212, 0.2); border-radius:var(--radius-sm); padding:0.65rem; margin-bottom:1rem; font-size:0.75rem; color:var(--text-muted); text-align:center;">
         🛡️ Automatic <strong>NIST FIPS 203 ML-KEM-768</strong> Post-Quantum Key Vault provisioned on sign-in.
@@ -136,6 +131,9 @@
             <div style="font-size:0.72rem; color:var(--pqc-cyan);" id="activeUserRole">@user</div>
           </div>
         </div>
+        <button class="btn btn-secondary btn-sm" id="btnSwitchAccount" onclick="switchAccount()" title="Switch to another user or sign in with another account" style="margin-right:0.35rem;">
+          🔄 Switch Account
+        </button>
         <button class="btn btn-secondary btn-sm" id="btnSignOut" title="Sign out of current account">
           🚪 Sign Out
         </button>
@@ -462,48 +460,44 @@
       </div>
       <form id="createLinkForm">
         <div class="form-group">
-          <label>Cryptographic Protection Mode</label>
+          <label style="font-weight:600;">Link Protection Mode</label>
           <div style="display:grid; grid-template-columns: 1fr 1fr; gap:0.75rem;">
-            <label id="modeCardSecret" style="border:1px solid var(--border-color); border-radius:var(--radius-md); padding:0.85rem; cursor:pointer; background:var(--bg-secondary);">
-              <input type="radio" name="linkProtectionMode" value="SECRET_KEY" onchange="toggleLinkProtectionMode(this.value)">
-              <strong style="color:var(--text-main); display:block; margin-top:0.25rem;">Option 1: Password / Secret Key</strong>
-              <span style="font-size:0.72rem; color:var(--text-muted); display:block;">Enter your own password (e.g. "Huzaifa11") or auto-generate one. Recipient enters this to open file.</span>
+            <label id="modeCardSecret" style="border:1px solid var(--pqc-cyan); border-radius:var(--radius-md); padding:0.85rem; cursor:pointer; background:rgba(6, 182, 212, 0.08);">
+              <input type="radio" name="linkProtectionMode" value="SECRET_KEY" checked onchange="toggleLinkProtectionMode(this.value)">
+              <strong style="color:var(--pqc-cyan); display:block; margin-top:0.25rem;">Option 1: 🔑 Password Protected (Recommended)</strong>
+              <span style="font-size:0.75rem; color:var(--text-muted); display:block; margin-top:0.25rem;">Set your own password. The recipient simply enters this password to unlock & download the file — no accounts or cryptographic keys needed.</span>
             </label>
 
-            <label id="modeCardMlkem" style="border:1px solid var(--pqc-cyan); border-radius:var(--radius-md); padding:0.85rem; cursor:pointer; background:rgba(6, 182, 212, 0.08);">
-              <input type="radio" name="linkProtectionMode" value="ML_KEM" checked onchange="toggleLinkProtectionMode(this.value)">
-              <strong style="color:var(--pqc-cyan); display:block; margin-top:0.25rem;">Option 2: NIST ML-KEM (PQC)</strong>
-              <span style="font-size:0.72rem; color:var(--text-muted); display:block;">Quantum-safe lattice key encapsulation. System generates the cryptographic private key for you to share.</span>
+            <label id="modeCardMlkem" style="border:1px solid var(--border-color); border-radius:var(--radius-md); padding:0.85rem; cursor:pointer; background:var(--bg-secondary);">
+              <input type="radio" name="linkProtectionMode" value="ML_KEM" onchange="toggleLinkProtectionMode(this.value)">
+              <strong style="color:var(--text-main); display:block; margin-top:0.25rem;">Option 2: ⚛️ Post-Quantum Key (NIST ML-KEM)</strong>
+              <span style="font-size:0.75rem; color:var(--text-muted); display:block; margin-top:0.25rem;">Quantum-resistant lattice cryptography. Requires sharing the ML-KEM private key certificate with the recipient.</span>
             </label>
           </div>
         </div>
 
-        <!-- ML-KEM Options -->
-        <div id="mlkemLinkOptions" class="form-group">
-          <label>Recipient Key Provisioning</label>
+        <!-- Option 1: Secret Key / Password Options (Default) -->
+        <div id="secretKeyLinkOptions" class="form-group" style="display:block; margin-top:1rem;">
+          <label style="font-weight:600; color:var(--text-main); font-size:0.85rem;">Choose File Access Password</label>
+          <div style="display:flex; gap:0.5rem;">
+            <input type="text" id="customSecretKeyInput" class="form-control" placeholder="Type your password (e.g. MySecret123)" style="font-family:var(--font-mono); font-size:0.95rem; font-weight:600;">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="generateRandomPassphrase()">🎲 Generate Random</button>
+          </div>
+          <small style="color:var(--text-dim); font-size:0.75rem; margin-top:0.35rem; display:block;">
+            💡 When your recipient opens the link, they just enter this password to download the file.
+          </small>
+        </div>
+
+        <!-- Option 2: ML-KEM Options -->
+        <div id="mlkemLinkOptions" class="form-group" style="display:none; margin-top:1rem;">
+          <label style="font-weight:600; color:var(--pqc-cyan); font-size:0.85rem;">Recipient Key Provisioning</label>
           <select id="mlkemKeyProvisionSelect" class="form-control" onchange="toggleMlkemKeyInput(this.value)">
-            <option value="auto">Auto-Generate ML-KEM Keypair (Recommended — System creates the private key for you)</option>
+            <option value="auto">Auto-Generate ML-KEM Keypair (System creates quantum-resistant private key)</option>
             <option value="custom">Paste Recipient's ML-KEM-768 Public Key (PEM Certificate only)</option>
           </select>
           <div id="customPubkeyArea" style="display:none; margin-top:0.6rem;">
-            <div style="background:rgba(244, 63, 94, 0.08); border:1px solid rgba(244, 63, 94, 0.3); border-radius:var(--radius-sm); padding:0.6rem 0.8rem; font-size:0.75rem; color:var(--text-muted); margin-bottom:0.5rem;">
-              ⚠️ <strong>Note:</strong> This field is <em>strictly</em> for cryptographic <strong>NIST ML-KEM PEM certificates</strong> (starting with <code>-----BEGIN PUBLIC KEY-----</code>).
-              If you want to set your own password (like <em>"Huzaifa11"</em>), select <strong>Option 1: Password / Secret Key</strong> above!
-            </div>
             <textarea id="customRecipientPubkey" class="form-control" rows="4" placeholder="-----BEGIN PUBLIC KEY-----&#10;Paste recipient's NIST ML-KEM-768 PEM public key block here...&#10;-----END PUBLIC KEY-----" style="font-family:var(--font-mono); font-size:0.75rem;"></textarea>
           </div>
-        </div>
-
-        <!-- Secret Key Options -->
-        <div id="secretKeyLinkOptions" class="form-group" style="display:none;">
-          <label>Set File Password / Secret Key</label>
-          <div style="display:flex; gap:0.5rem;">
-            <input type="text" id="customSecretKeyInput" class="form-control" placeholder="Enter password (e.g. Huzaifa11) or click Generate" style="font-family:var(--font-mono);">
-            <button type="button" class="btn btn-secondary btn-sm" onclick="generateRandomPassphrase()">🎲 Generate</button>
-          </div>
-          <small style="color:var(--text-dim); font-size:0.72rem; margin-top:0.25rem; display:block;">
-            Recipients will need to enter this exact password when opening your shared link.
-          </small>
         </div>
 
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:0.75rem;">
@@ -587,27 +581,31 @@
           Choose an account to continue to <strong>QSafeShare</strong>.
         </p>
 
-        <!-- Quick 1-Click Profile Selection -->
-        <div id="oauthQuickProfiles" style="display:flex; flex-direction:column; gap:0.6rem; margin-bottom:1.25rem;">
-          <!-- Populated dynamically -->
-        </div>
-
-        <div class="auth-divider">
-          <span>or use custom account</span>
+        <!-- Saved Accounts Section -->
+        <div id="oauthSavedSection" style="display:none; margin-bottom:1.25rem;">
+          <div style="font-size:0.75rem; font-weight:700; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:0.5rem;">
+            Saved Accounts
+          </div>
+          <div id="oauthQuickProfiles" style="display:flex; flex-direction:column; gap:0.6rem;">
+            <!-- Populated dynamically -->
+          </div>
+          <div class="auth-divider" style="margin:1.25rem 0;">
+            <span>or use another account</span>
+          </div>
         </div>
 
         <form id="oauthCustomForm" onsubmit="handleOAuthCustomSubmit(event)">
           <div class="form-group">
-            <label id="oauthEmailLabel">Email Address</label>
-            <input type="email" id="oauthCustomEmail" class="form-control" placeholder="user@gmail.com" required autocomplete="email">
+            <label id="oauthEmailLabel">Google Email Address</label>
+            <input type="email" id="oauthCustomEmail" class="form-control" placeholder="yourname@gmail.com" required autocomplete="email">
           </div>
           <div class="form-group">
-            <label>Display Name</label>
-            <input type="text" id="oauthCustomName" class="form-control" placeholder="Your Name" autocomplete="name">
+            <label id="oauthNameLabel">Your Name</label>
+            <input type="text" id="oauthCustomName" class="form-control" placeholder="e.g. Sarah Connor" required autocomplete="name">
           </div>
           <div id="oauthErrorMsg" style="margin-bottom:0.75rem; font-size:0.8rem; color:var(--accent-rose);"></div>
-          <button type="submit" class="btn btn-primary" id="btnSubmitOAuth" style="width:100%;">
-            Continue
+          <button type="submit" class="btn btn-primary" id="btnSubmitOAuth" style="width:100%; padding:0.7rem; font-weight:600;">
+            Continue to Workspace
           </button>
         </form>
       </div>
