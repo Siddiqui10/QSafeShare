@@ -8,103 +8,86 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
 
   <!-- Toast Notification Container -->
   <div id="toastContainer" class="toast-container"></div>
 
-  <!-- Real-World Authentication Modal / Screen -->
+  <!-- Streamlined Authentication Screen: Google Login & Email Sign-Up / Sign-In -->
   <div id="authOverlay" class="auth-overlay">
     <div class="auth-card">
       <div class="auth-header">
         <div class="auth-brand-icon">⚛️</div>
-        <h2 style="font-size:1.4rem; font-weight:700; margin-bottom:0.25rem;">QSafeShare Enterprise</h2>
+        <h2 style="font-size:1.4rem; font-weight:700; margin-bottom:0.25rem;">QSafeShare</h2>
         <p style="font-size:0.82rem; color:var(--text-dim);">Post-Quantum Secure Multi-Agent File Sharing</p>
       </div>
 
-      <!-- Primary Authentication: Google & Apple Sign-In -->
-      <div class="oauth-buttons">
-        <button type="button" class="btn-oauth btn-google" id="btnGoogleSignIn" onclick="openOAuthModal('google')">
+      <!-- Google Sign-In Container -->
+      <div class="oauth-buttons" style="margin-bottom:0.75rem;">
+        <div id="googleSignInDiv" style="display:flex; justify-content:center; width:100%; min-height:44px;"></div>
+        <button type="button" class="btn-oauth btn-google" id="btnGoogleSignIn" onclick="openOAuthModal('google')" style="display:flex;">
           <svg width="18" height="18" viewBox="0 0 24 24">
             <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"/>
             <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"/>
             <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.98 0 12s.45 3.82 1.25 5.42l4.03-3.15z"/>
             <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
           </svg>
-          <span>Continue with Google</span>
-        </button>
-
-        <button type="button" class="btn-oauth btn-apple" id="btnAppleSignIn" onclick="openOAuthModal('apple')">
-          <svg width="18" height="18" viewBox="0 0 170 170" fill="currentColor">
-            <path d="M150.37 130.25c-2.45 5.66-5.35 10.87-8.71 15.66-4.58 6.53-8.33 11.05-11.22 13.56-4.48 4.12-9.28 6.23-14.42 6.35-3.69 0-8.14-1.05-13.32-3.18-5.19-2.12-9.97-3.17-14.34-3.17-4.58 0-9.49 1.05-14.75 3.17-5.26 2.13-9.5 3.24-12.74 3.35-4.35.13-9.16-1.9-14.42-6.08-3.7-3.05-7.62-7.85-11.77-14.4-6.41-10.13-11.36-21.57-14.85-34.33-3.48-12.75-5.23-24.81-5.23-36.19 0-14.7 3.59-26.87 10.77-36.5 7.18-9.63 16.32-14.51 27.42-14.64 4.58 0 9.8 1.2 15.67 3.6 5.88 2.4 9.47 3.66 10.78 3.78 1.74-.24 5.56-1.58 11.46-4.02 5.9-2.44 10.7-3.54 14.41-3.3 10.66.44 19.34 4.3 26.04 11.58-9.37 5.66-14.06 13.72-14.06 24.18 0 7.73 2.72 14.26 8.17 19.6 5.44 5.34 12.08 8.38 19.92 9.14-2.18 6.53-4.9 13.06-8.16 19.6zm-29.62-111.97c0 4.9-1.31 9.7-3.92 14.4-2.61 4.7-6.2 8.4-10.77 11.1-1.31-4.47-1.42-8.93-.33-13.39 1.1-4.46 3.16-8.71 6.1-12.74 3.05-4.14 6.64-7.29 10.78-9.47 4.14-2.18 8.05-3.37 11.75-3.59.54 4.47.54 9.03-.33 13.69z"/>
-          </svg>
-          <span>Continue with Apple</span>
+          <span>Sign in with Google</span>
         </button>
       </div>
 
       <div id="oauthMainStatus" style="display:none; font-size:0.8rem; text-align:center; margin-bottom:0.75rem; padding:0.4rem; border-radius:var(--radius-sm); background:rgba(6, 182, 212, 0.1);"></div>
 
-      <div style="background:rgba(6, 182, 212, 0.08); border:1px solid rgba(6, 182, 212, 0.2); border-radius:var(--radius-sm); padding:0.65rem; margin-bottom:1rem; font-size:0.75rem; color:var(--text-muted); text-align:center;">
-        🛡️ Automatic <strong>NIST FIPS 203 ML-KEM-768</strong> Post-Quantum Key Vault provisioned on sign-in.
-      </div>
-
       <div class="auth-divider">
-        <span>or use demo / email credentials</span>
+        <span>or continue with email</span>
       </div>
 
-      <div style="text-align:center; margin-bottom:0.75rem;">
-        <button type="button" class="btn btn-secondary btn-sm" id="toggleEmailAuthBtn" onclick="toggleEmailAuthSection()">
-          ✉️ Email & Demo Credentials ▼
-        </button>
+      <!-- Direct Email Tabs: Sign In / Email Sign Up -->
+      <div class="auth-tabs">
+        <button type="button" class="auth-tab-btn active" id="authTabSignIn">Email Sign In</button>
+        <button type="button" class="auth-tab-btn" id="authTabSignUp">Email Sign Up</button>
       </div>
 
-      <!-- Collapsible Email / Demo Login Section -->
-      <div id="emailAuthSection" style="display:none;">
-        <div class="auth-tabs">
-          <button type="button" class="auth-tab-btn active" id="authTabSignIn">Sign In</button>
-          <button type="button" class="auth-tab-btn" id="authTabSignUp">Create Account</button>
+      <!-- Sign In Form -->
+      <form id="signInForm">
+        <div class="form-group">
+          <label>Email Address</label>
+          <input type="email" id="loginUsername" class="form-control" placeholder="you@example.com" required autocomplete="email">
         </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" id="loginPassword" class="form-control" placeholder="••••••••••••" required autocomplete="current-password">
+        </div>
+        <div id="signInError" style="margin-bottom:0.75rem; font-size:0.82rem;"></div>
+        <button type="submit" class="btn btn-primary" style="width:100%; padding:0.75rem; font-weight:600;">
+          Sign In to Workspace
+        </button>
+      </form>
 
-        <!-- Sign In Form -->
-        <form id="signInForm">
-          <div class="form-group">
-            <label>Username or Email</label>
-            <input type="text" id="loginUsername" class="form-control" placeholder="e.g. alice or user@domain.com" required autocomplete="username">
-          </div>
-          <div class="form-group">
-            <label>Password</label>
-            <input type="password" id="loginPassword" class="form-control" placeholder="••••••••••••" required autocomplete="current-password">
-          </div>
-          <div id="signInError" style="margin-bottom:1rem; font-size:0.82rem;"></div>
-          <button type="submit" class="btn btn-primary" style="width:100%;">
-            Sign In to Workspace
-          </button>
-        </form>
+      <!-- Email Sign Up Form -->
+      <form id="signUpForm" style="display:none;">
+        <div class="form-group">
+          <label>Full Name</label>
+          <input type="text" id="regFullName" class="form-control" placeholder="e.g. Sarah Connor" required autocomplete="name">
+        </div>
+        <div class="form-group">
+          <label>Email Address</label>
+          <input type="email" id="regEmail" class="form-control" placeholder="e.g. sarah@example.com" required autocomplete="email">
+        </div>
+        <div class="form-group">
+          <label>Password (Min. 6 characters)</label>
+          <input type="password" id="regPassword" class="form-control" placeholder="••••••••••••" required autocomplete="new-password" minlength="6">
+        </div>
+        <div id="signUpError" style="margin-bottom:0.75rem; font-size:0.82rem;"></div>
+        <button type="submit" class="btn btn-primary" style="width:100%; padding:0.75rem; font-weight:600;">
+          Create Account & Generate PQ Keypair
+        </button>
+      </form>
 
-        <!-- Sign Up Form -->
-        <form id="signUpForm" style="display:none;">
-          <div class="form-group">
-            <label>Full Name</label>
-            <input type="text" id="regFullName" class="form-control" placeholder="e.g. Sarah Connor" required autocomplete="name">
-          </div>
-          <div class="form-group">
-            <label>Username</label>
-            <input type="text" id="regUsername" class="form-control" placeholder="e.g. sconnor" required autocomplete="username">
-          </div>
-          <div class="form-group">
-            <label>Work Email</label>
-            <input type="email" id="regEmail" class="form-control" placeholder="e.g. sarah@cyberdyne.org" required autocomplete="email">
-          </div>
-          <div class="form-group">
-            <label>Password (Min. 6 characters)</label>
-            <input type="password" id="regPassword" class="form-control" placeholder="••••••••••••" required autocomplete="new-password" minlength="6">
-          </div>
-          <div id="signUpError" style="margin-bottom:1rem; font-size:0.82rem;"></div>
-          <button type="submit" class="btn btn-primary" style="width:100%;">
-            Register & Generate PQ Keypair
-          </button>
-        </form>
+      <div style="background:rgba(6, 182, 212, 0.08); border:1px solid rgba(6, 182, 212, 0.2); border-radius:var(--radius-sm); padding:0.65rem; margin-top:1.25rem; font-size:0.75rem; color:var(--text-muted); text-align:center;">
+        🛡️ Automatic <strong>NIST FIPS 203 ML-KEM-768</strong> Post-Quantum Key Vault provisioned on account creation.
       </div>
     </div>
   </div>
@@ -565,20 +548,27 @@
     </div>
   </div>
 
-  <!-- OAuth Provider Sign-In Modal (Google / Apple) -->
+  <!-- Google Sign-In & Account Switcher Modal -->
   <div class="modal-backdrop" id="oauthModal">
     <div class="modal" style="max-width:440px;">
       <div class="modal-header">
         <div style="display:flex; align-items:center; gap:0.6rem;">
-          <div id="oauthModalIcon" style="font-size:1.3rem;">🌐</div>
-          <div class="modal-title" id="oauthModalTitle">Sign in with Google</div>
+          <div id="oauthModalIcon" style="font-size:1.3rem;">
+            <svg width="22" height="22" viewBox="0 0 24 24">
+              <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"/>
+              <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"/>
+              <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.98 0 12s.45 3.82 1.25 5.42l4.03-3.15z"/>
+              <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
+            </svg>
+          </div>
+          <div class="modal-title" id="oauthModalTitle">Google Sign-In</div>
         </div>
         <button class="close-btn">&times;</button>
       </div>
 
       <div style="padding:0.5rem 0;">
         <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:1.25rem;" id="oauthModalDescription">
-          Choose an account to continue to <strong>QSafeShare</strong>.
+          Select a saved account or sign in with your Google email.
         </p>
 
         <!-- Saved Accounts Section -->

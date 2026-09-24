@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 # User Schemas
 class UserRegisterRequest(BaseModel):
-    username: str
+    username: Optional[str] = None
     email: str
     full_name: str
     password: str

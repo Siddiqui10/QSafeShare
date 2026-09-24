@@ -117,12 +117,13 @@ body {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
 }
 
-/* OAuth Buttons (Google & Apple Authentication) */
+/* Google OAuth Sign-In */
 .oauth-buttons {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  margin-bottom: 1.25rem;
+  align-items: center;
+  width: 100%;
 }
 
 .btn-oauth {
@@ -151,19 +152,6 @@ body {
 .btn-google:hover {
   background: #f8fafc;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
-  transform: translateY(-1px);
-}
-
-.btn-apple {
-  background: #000000;
-  color: #ffffff;
-  border-color: #374151;
-}
-
-.btn-apple:hover {
-  background: #111827;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
-  border-color: #4b5563;
   transform: translateY(-1px);
 }
 

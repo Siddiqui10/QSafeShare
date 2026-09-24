@@ -82,6 +82,7 @@ function formatDate(isoStr) {
 // App Initialization
 document.addEventListener("DOMContentLoaded", async () => {
   initAuthUI();
+  initGoogleIdentityServices();
   initNavigation();
   initModals();
   initRecipientSearch();
@@ -93,21 +94,87 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 });
 
-// OAuth & Authentication System
-let currentOAuthProvider = "google";
+window.addEventListener("load", () => {
+  initGoogleIdentityServices();
+});
 
-function toggleEmailAuthSection() {
-  const section = document.getElementById("emailAuthSection");
-  const btn = document.getElementById("toggleEmailAuthBtn");
-  if (!section) return;
-  const isHidden = (section.style.display === "none");
-  section.style.display = isHidden ? "block" : "none";
-  if (btn) {
-    btn.innerHTML = isHidden ? "✉️ Hide Email & Demo Credentials ▲" : "✉️ Email & Demo Credentials ▼";
+// Google OAuth Configuration
+let currentOAuthProvider = "google";
+let cachedGoogleClientId = "";
+
+// Initialize Google Identity Services (GIS)
+async function initGoogleIdentityServices() {
+  if (!cachedGoogleClientId) {
+    try {
+      const cfg = await apiRequest("/api/auth/oauth/config");
+      if (cfg && cfg.google_client_id) {
+        cachedGoogleClientId = cfg.google_client_id;
+      }
+    } catch (_) {}
+  }
+
+  if (!cachedGoogleClientId) return;
+
+  if (window.google && google.accounts && google.accounts.id) {
+    try {
+      google.accounts.id.initialize({
+        client_id: cachedGoogleClientId,
+        callback: handleGoogleCredentialResponse,
+        auto_select: false,
+        cancel_on_tap_outside: true,
+      });
+
+      const btnContainer = document.getElementById("googleSignInDiv");
+      const btnDirect = document.getElementById("btnGoogleSignIn");
+      if (btnContainer) {
+        btnContainer.innerHTML = "";
+        google.accounts.id.renderButton(btnContainer, {
+          theme: "outline",
+          size: "large",
+          type: "standard",
+          shape: "rectangular",
+          text: "signin_with",
+          logo_alignment: "left",
+          width: 320,
+        });
+        // Once official button renders, hide fallback button to prevent duplicates
+        if (btnDirect) {
+          btnDirect.style.display = "none";
+        }
+      }
+    } catch (e) {
+      console.warn("Google Identity Services initialization:", e);
+    }
   }
 }
 
-function getSavedAccounts(provider = null) {
+async function handleGoogleCredentialResponse(response) {
+  if (!response || !response.credential) return;
+  const statusEl = document.getElementById("oauthMainStatus");
+  if (statusEl) {
+    statusEl.style.display = "block";
+    statusEl.innerHTML = `⚡ Verifying Google account & provisioning ML-KEM-768 key vault...`;
+  }
+  try {
+    const data = await apiRequest("/api/auth/oauth/google", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        provider: "google",
+        credential: response.credential,
+      }),
+    });
+
+    saveAccount("google", data.user.email, data.user.full_name);
+    handleAuthSuccess(data);
+    showToast(`Welcome, ${data.user.full_name}! (Google Authenticated)`, "success");
+  } catch (err) {
+    showToast(`Google Sign-In error: ${err.message}`, "error");
+    if (statusEl) statusEl.innerHTML = `<span style="color:var(--accent-rose);">${escapeHtml(err.message)}</span>`;
+  }
+}
+
+function getSavedAccounts(provider = "google") {
   try {
     const raw = localStorage.getItem("qsafeshare_saved_accounts");
     if (!raw) return [];
@@ -124,7 +191,7 @@ function saveAccount(provider, email, fullName) {
     const cleanEmail = email.trim().toLowerCase();
     const cleanName = fullName ? fullName.trim() : cleanEmail.split("@")[0];
     const existingIndex = accounts.findIndex(a => a.email.toLowerCase() === cleanEmail);
-    const newAcc = { provider, email: cleanEmail, fullName: cleanName, lastLogin: new Date().toISOString() };
+    const newAcc = { provider: "google", email: cleanEmail, fullName: cleanName, lastLogin: new Date().toISOString() };
     if (existingIndex >= 0) {
       accounts[existingIndex] = newAcc;
     } else {
@@ -139,7 +206,7 @@ function removeSavedAccount(email, e) {
   try {
     const accounts = getSavedAccounts().filter(a => a.email.toLowerCase() !== email.toLowerCase());
     localStorage.setItem("qsafeshare_saved_accounts", JSON.stringify(accounts));
-    openOAuthModal(currentOAuthProvider);
+    openOAuthModal("google");
   } catch (_) {}
 }
 
@@ -148,8 +215,8 @@ function switchAccount() {
   openOAuthModal("google");
 }
 
-function openOAuthModal(provider) {
-  currentOAuthProvider = provider;
+function openOAuthModal(provider = "google") {
+  currentOAuthProvider = "google";
   const titleEl = document.getElementById("oauthModalTitle");
   const iconEl = document.getElementById("oauthModalIcon");
   const descEl = document.getElementById("oauthModalDescription");
@@ -165,44 +232,30 @@ function openOAuthModal(provider) {
   if (emailInput) emailInput.value = "";
   if (nameInput) nameInput.value = "";
 
-  const savedAccounts = getSavedAccounts(provider);
+  const savedAccounts = getSavedAccounts("google");
 
-  if (provider === "google") {
-    if (titleEl) titleEl.textContent = "Sign in with Google";
-    if (iconEl) iconEl.innerHTML = `
-      <svg width="22" height="22" viewBox="0 0 24 24">
-        <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"/>
-        <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"/>
-        <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.98 0 12s.45 3.82 1.25 5.42l4.03-3.15z"/>
-        <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
-      </svg>
-    `;
-    if (descEl) descEl.innerHTML = "Sign in to <strong>QSafeShare</strong> with your Google account:";
-    if (emailLabel) emailLabel.textContent = "Google Email Address";
-    if (emailInput) emailInput.placeholder = "yourname@gmail.com";
-    if (nameInput) nameInput.placeholder = "Your Full Name";
-    if (submitBtn) submitBtn.textContent = "Sign In with Google";
-  } else {
-    if (titleEl) titleEl.textContent = "Sign in with Apple";
-    if (iconEl) iconEl.innerHTML = `
-      <svg width="22" height="22" viewBox="0 0 170 170" fill="currentColor">
-        <path d="M150.37 130.25c-2.45 5.66-5.35 10.87-8.71 15.66-4.58 6.53-8.33 11.05-11.22 13.56-4.48 4.12-9.28 6.23-14.42 6.35-3.69 0-8.14-1.05-13.32-3.18-5.19-2.12-9.97-3.17-14.34-3.17-4.58 0-9.49 1.05-14.75 3.17-5.26 2.13-9.5 3.24-12.74 3.35-4.35.13-9.16-1.9-14.42-6.08-3.7-3.05-7.62-7.85-11.77-14.4-6.41-10.13-11.36-21.57-14.85-34.33-3.48-12.75-5.23-24.81-5.23-36.19 0-14.7 3.59-26.87 10.77-36.5 7.18-9.63 16.32-14.51 27.42-14.64 4.58 0 9.8 1.2 15.67 3.6 5.88 2.4 9.47 3.66 10.78 3.78 1.74-.24 5.56-1.58 11.46-4.02 5.9-2.44 10.7-3.54 14.41-3.3 10.66.44 19.34 4.3 26.04 11.58-9.37 5.66-14.06 13.72-14.06 24.18 0 7.73 2.72 14.26 8.17 19.6 5.44 5.34 12.08 8.38 19.92 9.14-2.18 6.53-4.9 13.06-8.16 19.6zm-29.62-111.97c0 4.9-1.31 9.7-3.92 14.4-2.61 4.7-6.2 8.4-10.77 11.1-1.31-4.47-1.42-8.93-.33-13.39 1.1-4.46 3.16-8.71 6.1-12.74 3.05-4.14 6.64-7.29 10.78-9.47 4.14-2.18 8.05-3.37 11.75-3.59.54 4.47.54 9.03-.33 13.69z"/>
-      </svg>
-    `;
-    if (descEl) descEl.innerHTML = "Sign in to <strong>QSafeShare</strong> using your Apple ID:";
-    if (emailLabel) emailLabel.textContent = "Apple ID / Email";
-    if (emailInput) emailInput.placeholder = "yourname@privaterelay.appleid.com";
-    if (nameInput) nameInput.placeholder = "Your Full Name";
-    if (submitBtn) submitBtn.textContent = "Sign In with Apple";
-  }
+  if (titleEl) titleEl.textContent = "Google Sign-In";
+  if (iconEl) iconEl.innerHTML = `
+    <svg width="22" height="22" viewBox="0 0 24 24">
+      <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"/>
+      <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"/>
+      <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.98 0 12s.45 3.82 1.25 5.42l4.03-3.15z"/>
+      <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
+    </svg>
+  `;
+  if (descEl) descEl.innerHTML = "Sign in to <strong>QSafeShare</strong> with your Google account:";
+  if (emailLabel) emailLabel.textContent = "Google Email Address";
+  if (emailInput) emailInput.placeholder = "yourname@gmail.com";
+  if (nameInput) nameInput.placeholder = "Your Full Name";
+  if (submitBtn) submitBtn.textContent = "Sign In with Google";
 
   // Populate Saved Accounts
   if (savedAccounts.length > 0 && quickArea && savedSection) {
     savedSection.style.display = "block";
     quickArea.innerHTML = savedAccounts.map(a => `
-      <div style="display:flex; align-items:center; justify-content:space-between; padding:0.65rem 0.85rem; border:1px solid var(--border-color); border-radius:var(--radius-md); background:var(--bg-secondary); cursor:pointer; transition:all 0.15s ease;" onclick="loginWithOAuth('${a.provider}', '${escapeHtml(a.email)}', '${escapeHtml(a.fullName)}')">
+      <div style="display:flex; align-items:center; justify-content:space-between; padding:0.65rem 0.85rem; border:1px solid var(--border-color); border-radius:var(--radius-md); background:var(--bg-secondary); cursor:pointer; transition:all 0.15s ease;" onclick="loginWithOAuth('google', '${escapeHtml(a.email)}', '${escapeHtml(a.fullName)}')">
         <div style="display:flex; align-items:center; gap:0.75rem;">
-          <div style="width:34px; height:34px; border-radius:50%; background:${a.provider === 'google' ? '#4285F4' : '#000'}; border:1px solid ${a.provider === 'google' ? '#3367D6' : '#444'}; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:0.9rem;">
+          <div style="width:34px; height:34px; border-radius:50%; background:#4285F4; border:1px solid #3367D6; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:0.9rem;">
             ${escapeHtml(a.fullName.substring(0, 1).toUpperCase())}
           </div>
           <div style="text-align:left;">
@@ -220,7 +273,7 @@ function openOAuthModal(provider) {
   openModal("oauthModal");
 }
 
-async function loginWithOAuth(provider, email, fullName, oauthId = null) {
+async function loginWithOAuth(provider = "google", email, fullName, oauthId = null) {
   const errEl = document.getElementById("oauthErrorMsg");
   const submitBtn = document.getElementById("btnSubmitOAuth");
   if (errEl) errEl.innerHTML = `<span style="color:var(--pqc-cyan);">Authenticating and provisioning ML-KEM-768 key vault...</span>`;
@@ -230,21 +283,21 @@ async function loginWithOAuth(provider, email, fullName, oauthId = null) {
   }
 
   try {
-    const data = await apiRequest(`/api/auth/oauth/${provider}`, {
+    const data = await apiRequest(`/api/auth/oauth/google`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        provider: provider,
+        provider: "google",
         email: email.trim(),
         full_name: fullName.trim() || email.split("@")[0],
-        oauth_id: oauthId || `${provider}_${Date.now()}`
+        oauth_id: oauthId || `google_${Date.now()}`
       }),
     });
 
-    saveAccount(provider, data.user.email, data.user.full_name);
+    saveAccount("google", data.user.email, data.user.full_name);
     closeModal("oauthModal");
     handleAuthSuccess(data);
-    showToast(`Welcome, ${data.user.full_name}! (Signed in via ${provider.toUpperCase()})`, "success");
+    showToast(`Welcome, ${data.user.full_name}! (Google Authenticated)`, "success");
     return data;
   } catch (err) {
     if (errEl) errEl.innerHTML = `<span style="color:var(--accent-rose);">${escapeHtml(err.message)}</span>`;
@@ -252,7 +305,7 @@ async function loginWithOAuth(provider, email, fullName, oauthId = null) {
   } finally {
     if (submitBtn) {
       submitBtn.disabled = false;
-      submitBtn.textContent = (provider === "google") ? "Sign In with Google" : "Sign In with Apple";
+      submitBtn.textContent = "Sign In with Google";
     }
   }
 }
@@ -262,7 +315,7 @@ function handleOAuthCustomSubmit(e) {
   const email = document.getElementById("oauthCustomEmail").value.trim();
   const name = document.getElementById("oauthCustomName").value.trim() || email.split("@")[0];
   if (!email) return;
-  loginWithOAuth(currentOAuthProvider, email, name);
+  loginWithOAuth("google", email, name);
 }
 
 
@@ -321,7 +374,8 @@ function initAuthUI() {
       regErr.innerHTML = "";
 
       const fullName = document.getElementById("regFullName").value.trim();
-      const username = document.getElementById("regUsername").value.trim();
+      const regUserEl = document.getElementById("regUsername");
+      const username = regUserEl ? regUserEl.value.trim() : "";
       const email = document.getElementById("regEmail").value.trim();
       const password = document.getElementById("regPassword").value;
 
@@ -332,7 +386,7 @@ function initAuthUI() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             full_name: fullName,
-            username,
+            username: username || undefined,
             email,
             password,
             kem_algorithm: "ML-KEM-768",
@@ -1425,10 +1479,11 @@ window.downloadLinkKeyFile = downloadLinkKeyFile;
 window.loadMyLinks = loadMyLinks;
 window.revokeLink = revokeLink;
 window.switchToSecretKeyWithPassword = switchToSecretKeyWithPassword;
-window.switchToAutoMlkem = switchToAutoMlkem;
 window.openOAuthModal = openOAuthModal;
 window.loginWithOAuth = loginWithOAuth;
 window.handleOAuthCustomSubmit = handleOAuthCustomSubmit;
-window.toggleEmailAuthSection = toggleEmailAuthSection;
+window.initGoogleIdentityServices = initGoogleIdentityServices;
+window.handleGoogleCredentialResponse = handleGoogleCredentialResponse;
+window.switchAccount = switchAccount;
 
 

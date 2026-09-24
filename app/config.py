@@ -45,12 +45,22 @@ APP_VERSION = "1.0.0"
 SECRET_KEY = os.environ.get("SECRET_KEY", "qsafeshare-post-quantum-secure-session-key-dev")
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24
 
-# Google & Apple OAuth Configuration
+# Load .env file if present (local development)
+_env_path = BASE_DIR / ".env"
+if _env_path.exists():
+    try:
+        with open(_env_path, "r", encoding="utf-8") as _f:
+            for _line in _f:
+                _line = _line.strip()
+                if _line and not _line.startswith("#") and "=" in _line:
+                    _k, _v = _line.split("=", 1)
+                    os.environ.setdefault(_k.strip(), _v.strip())
+    except Exception:
+        pass
+
+# Google OAuth Configuration
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
 GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
-APPLE_CLIENT_ID = os.environ.get("APPLE_CLIENT_ID", "")
-APPLE_TEAM_ID = os.environ.get("APPLE_TEAM_ID", "")
-APPLE_KEY_ID = os.environ.get("APPLE_KEY_ID", "")
 
 # Demo User Credentials (pre-seeded for easy evaluation)
 DEMO_USERS = [

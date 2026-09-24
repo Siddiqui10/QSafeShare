@@ -74,21 +74,28 @@ class AuthService:
         role: str = "user",
     ) -> Dict[str, Any]:
         """Register a new real-world user and provision their native NIST ML-KEM keypair."""
-        uname = username.strip().lower()
         umail = email.strip().lower()
-
-        if len(uname) < 3:
-            raise ValueError("Username must be at least 3 characters long.")
         if "@" not in umail or "." not in umail:
             raise ValueError("A valid email address is required.")
         if len(password) < 6:
             raise ValueError("Password must be at least 6 characters long.")
 
-        # Check uniqueness
-        if UserRepository.get_by_username(uname):
-            raise ValueError(f"Username '{uname}' is already registered.")
+        # Check email uniqueness
         if UserRepository.get_by_email(umail):
-            raise ValueError(f"Email '{umail}' is already registered.")
+            raise ValueError(f"Email '{umail}' is already registered. Please sign in.")
+
+        uname = (username or "").strip().lower()
+        if not uname:
+            uname = umail.split("@")[0].replace(".", "_").replace("+", "_")
+        if len(uname) < 3:
+            uname = f"usr_{uname}"
+
+        # Resolve username collisions automatically
+        base_uname = uname
+        counter = 1
+        while UserRepository.get_by_username(uname):
+            uname = f"{base_uname}{counter}"
+            counter += 1
 
         # Generate ML-KEM Keypair (FIPS 203)
         public_pem, private_pem = PostQuantumKEM.generate_keypair(kem_algorithm)

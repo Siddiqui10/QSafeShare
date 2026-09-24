@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from app.models.schemas import UserRegisterRequest, UserLoginRequest, UserResponse, KeyVaultResponse
 from app.services.auth_service import AuthService
 from app.database.repositories import UserRepository
-from app.config import GOOGLE_CLIENT_ID, APPLE_CLIENT_ID
+from app.config import GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
 
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 
@@ -41,10 +41,10 @@ def get_current_user_from_header(authorization: Optional[str] = Header(None)) ->
 
 @router.post("/register")
 def register(req: UserRegisterRequest):
-    """Register a new real-world user account with auto-provisioned NIST ML-KEM keypair."""
+    """Register a new user account with auto-provisioned NIST ML-KEM keypair."""
     try:
         user = AuthService.register_user(
-            username=req.username,
+            username=req.username or "",
             email=req.email,
             full_name=req.full_name,
             password=req.password,
@@ -76,7 +76,7 @@ def login(req: UserLoginRequest):
     """Authenticate with username or email and password."""
     user = AuthService.authenticate(req.username, req.password)
     if not user:
-        raise HTTPException(status_code=401, detail="Invalid username or password.")
+        raise HTTPException(status_code=401, detail="Invalid email or password.")
 
     token = AuthService.create_token_for_user(user)
     return {
@@ -137,12 +137,10 @@ def get_key_vault(current_user: Dict[str, Any] = Depends(get_current_user_from_h
 
 @router.get("/oauth/config")
 def get_oauth_config():
-    """Return OAuth client status for Google and Apple."""
+    """Return OAuth client status for Google Sign-In."""
     return {
         "google_client_id": GOOGLE_CLIENT_ID or "",
-        "apple_client_id": APPLE_CLIENT_ID or "",
         "has_google_configured": bool(GOOGLE_CLIENT_ID),
-        "has_apple_configured": bool(APPLE_CLIENT_ID),
     }
 
 
@@ -154,7 +152,7 @@ def login_google(req: OAuthLoginRequest):
     oauth_id = req.oauth_id
 
     # If Google credential (id_token) is provided and client ID is configured, verify it
-    if req.credential and GOOGLE_CLIENT_ID:
+    if req.credential:
         try:
             import urllib.request, json
             req_url = f"https://oauth2.googleapis.com/tokeninfo?id_token={req.credential}"
@@ -192,36 +190,3 @@ def login_google(req: OAuthLoginRequest):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-
-@router.post("/oauth/apple")
-def login_apple(req: OAuthLoginRequest):
-    """Authenticate via Apple Sign-In with auto-provisioned ML-KEM-768 keypair."""
-    email = req.email or "user@privaterelay.appleid.com"
-    full_name = req.full_name or "Apple User"
-    oauth_id = req.oauth_id
-
-    try:
-        user = AuthService.authenticate_oauth(
-            provider="apple",
-            email=email,
-            full_name=full_name,
-            oauth_id=oauth_id,
-        )
-        token = AuthService.create_token_for_user(user)
-        return {
-            "access_token": token,
-            "token_type": "bearer",
-            "user": {
-                "id": user["id"],
-                "username": user["username"],
-                "email": user["email"],
-                "full_name": user["full_name"],
-                "role": user["role"],
-                "kem_algorithm": user["kem_algorithm"],
-                "public_key_pem": user["public_key_pem"],
-                "auth_provider": "apple",
-                "created_at": user["created_at"],
-            },
-        }
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
