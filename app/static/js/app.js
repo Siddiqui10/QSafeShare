@@ -1232,10 +1232,11 @@ async function handleCreateLinkSubmit(e) {
     }
 
     currentGeneratedLinkData = data;
-    // Clean, short share URL: e.g. https://q-safe-share.vercel.app/share/K8-Xv_2mP9A
+    // Clean, short share URL: e.g. https://q-safe-share.vercel.app/s/X7k9Pq3m
     const shortShareUrl = `${window.location.origin}${data.share_url}`;
-    const credential = data.secret_key || data.private_key_pem || "";
-    // 1-Click link: appends only #key=password to the short URL
+    const fullShareUrl = shortShareUrl; // Clean short URL for display and copying
+    const credential = data.secret_key || "";
+    // 1-Click link: appends only #key=password to the short URL for password mode
     const unifiedUrl = credential ? `${shortShareUrl}#key=${encodeURIComponent(credential)}` : shortShareUrl;
 
     // Optional self-contained bundle for offline use
@@ -1446,8 +1447,9 @@ async function loadMyLinks() {
     }
 
     tbody.innerHTML = links.map(l => {
-      const fullUrl = `${window.location.origin}/share/${l.id}`;
-      const linkHref = `/share/${l.id}`;
+      const linkPath = l.share_url || `/s/${l.id}`;
+      const fullUrl = `${window.location.origin}${linkPath}`;
+      const linkHref = linkPath;
       let statusBadge = `<span class="badge badge-allowed">Active</span>`;
       let revokeBtn = `<button class="btn btn-danger btn-sm" onclick="revokeLink('${l.id}')">Revoke Link</button>`;
 
@@ -1476,7 +1478,7 @@ async function loadMyLinks() {
           </td>
           <td>
             <div style="display:flex; align-items:center; gap:0.4rem;">
-              <code style="font-size:0.75rem; color:var(--pqc-cyan);">/share/${l.id}</code>
+              <code style="font-size:0.75rem; color:var(--pqc-cyan);">${linkPath}</code>
               <button class="btn btn-secondary btn-sm" style="padding:0.15rem 0.4rem; font-size:0.7rem;" onclick="navigator.clipboard.writeText('${escapeHtml(fullUrl)}').then(() => showToast('Link copied!','success'))">📋</button>
               <a href="${escapeHtml(linkHref)}" target="_blank" class="btn btn-secondary btn-sm" style="padding:0.15rem 0.4rem; font-size:0.7rem;" title="Open recipient page">↗️</a>
             </div>

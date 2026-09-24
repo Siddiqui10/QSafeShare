@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>QSafeShare — Secure File Access</title>
-  <link rel="stylesheet" href="/static/css/style.css">
+  <link rel="stylesheet" href="/static/css/style.css?v=1.2.0">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -124,7 +124,11 @@
   </main>
 
   <script>
-    const shareToken = window.location.pathname.split("/share/")[1]?.split("?")[0]?.split("#")[0];
+    // Extract token supporting both /s/{token} and /share/{token}
+    const pathParts = window.location.pathname.split("/").filter(Boolean);
+    const shareToken = (pathParts.length >= 2 && (pathParts[0] === "s" || pathParts[0] === "share"))
+      ? pathParts[1].split("?")[0].split("#")[0]
+      : (window.location.pathname.split("/share/")[1] || window.location.pathname.split("/s/")[1] || "")?.split("?")[0]?.split("#")[0];
 
     // Check if bundle or key is passed in URL fragment (e.g. #b=... or #key=...)
     let fragmentBundle = "";

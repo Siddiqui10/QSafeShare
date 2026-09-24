@@ -60,6 +60,7 @@ def serve_index():
 
 
 @app.get("/share/{share_token}")
+@app.get("/s/{share_token}")
 def serve_share_page(share_token: str):
     """Serve the recipient secure decryption landing page."""
     share_page_path = static_dir / "share.html"

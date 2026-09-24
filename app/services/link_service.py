@@ -7,6 +7,7 @@ Supports:
 
 import os
 import time
+import string
 import secrets
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
@@ -25,9 +26,14 @@ class LinkService:
     """Orchestrates link creation, policy validation, and link-based decryption."""
 
     @staticmethod
-    def _generate_share_token() -> str:
-        """Generate a secure, URL-friendly 16-character link token."""
-        return secrets.token_urlsafe(12)  # ~16 URL-safe characters
+    def _generate_share_token(length: int = 8) -> str:
+        """Generate a compact, URL-safe 8-character link token (base62 alphanumeric)."""
+        alphabet = string.ascii_letters + string.digits
+        for _ in range(10):
+            token = "".join(secrets.choice(alphabet) for _ in range(length))
+            if not LinkRepository.get_link(token):
+                return token
+        return "".join(secrets.choice(alphabet) for _ in range(length))
 
     @staticmethod
     def create_mlkem_link(
@@ -135,7 +141,7 @@ class LinkService:
 
         return {
             "share_token": share_token,
-            "share_url": f"/share/{share_token}",
+            "share_url": f"/s/{share_token}",
             "protection_mode": "ML_KEM",
             "kem_algorithm": kem_algorithm,
             "recipient_public_key_pem": recipient_public_key_pem,
@@ -244,7 +250,7 @@ class LinkService:
 
         return {
             "share_token": share_token,
-            "share_url": f"/share/{share_token}",
+            "share_url": f"/s/{share_token}",
             "protection_mode": "SECRET_KEY",
             "secret_key": secret_key,
             "expires_at": expires_at,

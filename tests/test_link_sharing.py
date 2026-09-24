@@ -281,3 +281,53 @@ def test_stateless_api_endpoints_e2e():
     assert data_succ["success"] is True
     assert data_succ["filename"] == "api_test.txt"
     assert data_succ["verified"] is True
+
+
+def test_short_share_link_and_routes():
+    """Verify that generated share links are short (~8 chars) and served via /s/ and /share/."""
+    from fastapi.testclient import TestClient
+    from app.main import app
+
+    client = TestClient(app)
+    alice = UserRepository.get_by_username("alice")
+    file_record = FileService.upload_and_encrypt(
+        owner_id=alice["id"],
+        filename="short_url_test.txt",
+        file_bytes=b"Short URL verification content",
+        mime_type="text/plain",
+    )
+
+    # 1. Option 1: Secret Key link
+    sec_link = LinkService.create_secret_key_link(
+        file_id=file_record["id"],
+        creator_id=alice["id"],
+        custom_secret_key="ShortTestKey1!",
+    )
+    token = sec_link["share_token"]
+    assert len(token) == 8, f"Expected 8-character token, got {len(token)}"
+    assert sec_link["share_url"] == f"/s/{token}"
+    assert token.isalnum(), "Token should be clean alphanumeric"
+
+    # Test /s/{token} route
+    resp_s = client.get(f"/s/{token}")
+    assert resp_s.status_code == 200
+    assert "Secure File Access" in resp_s.text
+
+    # Test legacy /share/{token} route
+    resp_share = client.get(f"/share/{token}")
+    assert resp_share.status_code == 200
+    assert "Secure File Access" in resp_share.text
+
+    # 2. Option 2: ML-KEM link
+    kem_link = LinkService.create_mlkem_link(
+        file_id=file_record["id"],
+        creator_id=alice["id"],
+    )
+    kem_token = kem_link["share_token"]
+    assert len(kem_token) == 8, f"Expected 8-character token, got {len(kem_token)}"
+    assert kem_link["share_url"] == f"/s/{kem_token}"
+    assert kem_token.isalnum(), "Token should be clean alphanumeric"
+
+    resp_kem = client.get(f"/s/{kem_token}")
+    assert resp_kem.status_code == 200
+
