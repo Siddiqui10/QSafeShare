@@ -320,8 +320,17 @@
         if (!res.ok) {
           const err = await res.json();
           let msg = err.detail || "Decryption failed.";
-          if (!isMlkem && (res.status === 403 || msg.toLowerCase().includes("key") || msg.toLowerCase().includes("credential"))) {
-            msg = "Incorrect password! Please verify the password and try again.";
+          if (!isMlkem) {
+            const lower = msg.toLowerCase();
+            if (lower.includes("expired")) {
+              msg = "⏰ This secure link has expired. Please ask the sender to create a new link.";
+            } else if (lower.includes("limit") || lower.includes("reach")) {
+              msg = "🚫 Maximum download limit for this link has been reached.";
+            } else if (lower.includes("revok")) {
+              msg = "🚫 This link has been revoked by the file owner.";
+            } else if (lower.includes("key") || lower.includes("credential") || lower.includes("mismatch") || lower.includes("tag") || lower.includes("invalid")) {
+              msg = "🔑 Incorrect password! Please check the password and try again.";
+            }
           }
           throw new Error(msg);
         }

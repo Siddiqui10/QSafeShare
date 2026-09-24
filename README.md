@@ -206,9 +206,29 @@ Create a local `.env` file (which is gitignored):
 GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=your-google-client-secret
 SECRET_KEY=your-session-secret-key
+
+# Optional: Cloud PostgreSQL for persistent storage across Vercel serverless containers
+# DATABASE_URL=postgresql://user:password@host:5432/dbname?sslmode=require
 ```
 
 On **Vercel**, add these variables under **Project Settings → Environment Variables**, then trigger a redeployment.
+
+### 3. Persistent Cloud Database (Recommended for Vercel)
+Serverless containers are ephemeral (`/tmp` resets on cold starts). To ensure uploaded files, users, and secure links persist indefinitely across all containers and devices:
+
+- **Option A (1-Click in Vercel Storage)**:
+  1. Open your project on the [Vercel Dashboard](https://vercel.com/dashboard).
+  2. Navigate to the **Storage** tab.
+  3. Click **Create Database** → Select **Neon** or **Postgres** (Free tier).
+  4. Vercel automatically links the database and injects `POSTGRES_URL`!
+
+- **Option B (Free Neon or Supabase)**:
+  1. Create a free PostgreSQL instance on [Neon](https://neon.tech/) or [Supabase](https://supabase.com/).
+  2. Copy the connection string and set `DATABASE_URL` in Vercel Environment Variables:
+     ```text
+     DATABASE_URL=postgresql://user:password@ep-xxxx.neon.tech/neondb?sslmode=require
+     ```
+  3. QSafeShare will automatically detect `DATABASE_URL`, initialize all tables, and preserve all files and links permanently!
 
 ---
 

@@ -11,8 +11,31 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 APP_DIR = BASE_DIR / "app"
 
+# Load .env file if present (local development)
+_env_path = BASE_DIR / ".env"
+if _env_path.exists():
+    try:
+        with open(_env_path, "r", encoding="utf-8") as _f:
+            for _line in _f:
+                _line = _line.strip()
+                if _line and not _line.startswith("#") and "=" in _line:
+                    _k, _v = _line.split("=", 1)
+                    os.environ.setdefault(_k.strip(), _v.strip())
+    except Exception:
+        pass
+
 # Detect Serverless / Vercel deployment
 IS_VERCEL = bool(os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))
+
+# Database Configuration (Supports PostgreSQL for cloud/Vercel and SQLite for local)
+DATABASE_URL = (
+    os.environ.get("DATABASE_URL")
+    or os.environ.get("POSTGRES_URL")
+    or os.environ.get("POSTGRES_PRISMA_URL")
+    or os.environ.get("POSTGRES_URL_NON_POOLING")
+    or ""
+).strip()
+USE_POSTGRES = bool(DATABASE_URL and ("postgres://" in DATABASE_URL or "postgresql://" in DATABASE_URL))
 
 if IS_VERCEL:
     # Serverless platforms have read-only root filesystems, only /tmp is writable
@@ -44,19 +67,6 @@ APP_NAME = "QSafeShare"
 APP_VERSION = "1.0.0"
 SECRET_KEY = os.environ.get("SECRET_KEY", "qsafeshare-post-quantum-secure-session-key-dev")
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24
-
-# Load .env file if present (local development)
-_env_path = BASE_DIR / ".env"
-if _env_path.exists():
-    try:
-        with open(_env_path, "r", encoding="utf-8") as _f:
-            for _line in _f:
-                _line = _line.strip()
-                if _line and not _line.startswith("#") and "=" in _line:
-                    _k, _v = _line.split("=", 1)
-                    os.environ.setdefault(_k.strip(), _v.strip())
-    except Exception:
-        pass
 
 # Google OAuth Configuration
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")

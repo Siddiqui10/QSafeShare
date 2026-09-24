@@ -8,7 +8,23 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script>
+    // 0ms Auth Resolution: Suppress login overlay immediately if already authenticated or returning with token
+    (function() {
+      var search = window.location.search || "";
+      var hasTokenInUrl = search.indexOf("token=") !== -1;
+      var hasStoredToken = false;
+      try { hasStoredToken = !!localStorage.getItem("qsafeshare_token"); } catch(e){}
+      if (hasTokenInUrl || hasStoredToken) {
+        document.documentElement.classList.add("auth-resolved");
+      }
+    })();
+  </script>
+  <style>
+    html.auth-resolved #authOverlay {
+      display: none !important;
+    }
+  </style>
 </head>
 <body>
 
@@ -24,17 +40,17 @@
         <p style="font-size:0.82rem; color:var(--text-dim);">Post-Quantum Secure Multi-Agent File Sharing</p>
       </div>
 
-      <!-- Google Sign-In Container -->
+      <!-- Google Sign-In Container: 1-Tap Direct Login -->
       <div class="oauth-buttons" style="margin-bottom:0.75rem;">
-        <button type="button" class="btn-oauth btn-google" id="btnGoogleSignIn" onclick="redirectToGoogleLogin()" style="display:flex; width:100%; justify-content:center; align-items:center; gap:0.65rem; padding:0.75rem 1rem; font-weight:600;">
-          <svg width="20" height="20" viewBox="0 0 24 24">
+        <a href="/api/auth/oauth/google/login" class="btn-oauth btn-google" id="btnGoogleSignIn" style="text-decoration:none; display:flex; width:100%; justify-content:center; align-items:center; gap:0.65rem; padding:0.85rem 1rem; font-weight:600; font-size:0.95rem; cursor:pointer; -webkit-tap-highlight-color:transparent;">
+          <svg width="22" height="22" viewBox="0 0 24 24">
             <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"/>
             <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"/>
             <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.98 0 12s.45 3.82 1.25 5.42l4.03-3.15z"/>
             <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
           </svg>
-          <span>Sign in with Google</span>
-        </button>
+          <span>Continue with Google</span>
+        </a>
       </div>
 
       <div id="oauthMainStatus" style="display:none; font-size:0.8rem; text-align:center; margin-bottom:0.75rem; padding:0.4rem; border-radius:var(--radius-sm); background:rgba(6, 182, 212, 0.1);"></div>
@@ -413,12 +429,12 @@
         <div class="form-group">
           <label>Access Duration (Enforced by Policy Agent)</label>
           <select id="shareExpirySelect" class="form-control">
-            <option value="">No Expiry (Perpetual until revoked)</option>
-            <option value="1">1 Hour</option>
-            <option value="24">24 Hours (1 Day)</option>
-            <option value="72">3 Days (72 Hours)</option>
-            <option value="168">7 Days (1 Week)</option>
+            <option value="" selected>No Expiry (Perpetual until revoked)</option>
             <option value="720">30 Days (1 Month)</option>
+            <option value="168">7 Days (1 Week)</option>
+            <option value="72">3 Days (72 Hours)</option>
+            <option value="24">24 Hours (1 Day)</option>
+            <option value="1">1 Hour (Temporary)</option>
           </select>
         </div>
         <div id="shareStatusMsg" style="margin-bottom:1rem; font-size:0.85rem;"></div>
@@ -486,21 +502,21 @@
           <div class="form-group">
             <label>Link Expiration</label>
             <select id="linkExpirySelect" class="form-control">
+              <option value="" selected>Never (Perpetual / Until Revoked)</option>
+              <option value="720">30 Days (1 Month)</option>
+              <option value="168">7 Days (1 Week)</option>
+              <option value="72">3 Days (72 Hours)</option>
               <option value="24">24 Hours (1 Day)</option>
-              <option value="1">1 Hour</option>
-              <option value="72">3 Days</option>
-              <option value="168">7 Days</option>
-              <option value="720">30 Days</option>
-              <option value="">Never (Until Revoked)</option>
+              <option value="1">1 Hour (Temporary)</option>
             </select>
           </div>
           <div class="form-group">
             <label>Download Limit</label>
             <select id="linkMaxDownloadsSelect" class="form-control">
-              <option value="">Unlimited</option>
-              <option value="1">1 Download (Burn after reading)</option>
-              <option value="5">5 Downloads</option>
+              <option value="" selected>Unlimited Downloads (Recommended)</option>
               <option value="10">10 Downloads</option>
+              <option value="5">5 Downloads</option>
+              <option value="1">1 Download (Burn after reading)</option>
             </select>
           </div>
         </div>

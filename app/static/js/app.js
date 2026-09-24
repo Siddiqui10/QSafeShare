@@ -131,6 +131,8 @@ async function handleUrlAuthParams() {
   if (token) {
     AppState.token = token;
     localStorage.setItem("qsafeshare_token", token);
+    document.documentElement.classList.add("auth-resolved");
+    hideAuthOverlay();
     window.history.replaceState({}, document.title, window.location.pathname);
     try {
       const user = await apiRequest("/api/auth/me");
@@ -138,13 +140,13 @@ async function handleUrlAuthParams() {
       localStorage.setItem("qsafeshare_user", JSON.stringify(user));
       saveAccount("google", user.email, user.full_name);
       renderUserProfile();
-      hideAuthOverlay();
       showToast(`Welcome, ${user.full_name}! (Google Authenticated)`, "success");
       await refreshCurrentTabData();
       startAuditStream();
       return true;
     } catch (e) {
       console.error("Failed to establish session from OAuth token:", e);
+      document.documentElement.classList.remove("auth-resolved");
       signOutUser();
     }
   }
@@ -393,6 +395,7 @@ function handleAuthSuccess(authData) {
   AppState.currentUser = authData.user;
   localStorage.setItem("qsafeshare_token", authData.access_token);
   localStorage.setItem("qsafeshare_user", JSON.stringify(authData.user));
+  document.documentElement.classList.add("auth-resolved");
 
   hideAuthOverlay();
   renderUserProfile();
@@ -405,6 +408,7 @@ function signOutUser() {
   AppState.currentUser = null;
   localStorage.removeItem("qsafeshare_token");
   localStorage.removeItem("qsafeshare_user");
+  document.documentElement.classList.remove("auth-resolved");
   showAuthOverlay();
 }
 
