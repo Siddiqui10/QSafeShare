@@ -162,8 +162,19 @@
           }
         }
 
-        // 2. If server database does not have the link (e.g. serverless container cold start),
-        // inspect the self-healing link bundle in URL fragment
+        // 2. If fragmentBundle is not in URL, check if this browser has it cached locally
+        if (!fragmentBundle && shareToken) {
+          try {
+            const savedLinks = JSON.parse(localStorage.getItem("qsafeshare_saved_links") || "[]");
+            const match = savedLinks.find(l => l.id === shareToken);
+            if (match && match.bundle_b64) {
+              fragmentBundle = match.bundle_b64;
+            }
+          } catch (_) {}
+        }
+
+        // 3. If server database does not have the link (e.g. serverless container cold start),
+        // inspect the self-healing link bundle
         if (fragmentBundle) {
           const bRes = await fetch("/api/links/inspect-bundle", {
             method: "POST",

@@ -1232,21 +1232,20 @@ async function handleCreateLinkSubmit(e) {
     }
 
     currentGeneratedLinkData = data;
-    const baseShareUrl = `${window.location.origin}${data.share_url}`;
-    const bundleFragment = data.bundle_b64 ? `b=${encodeURIComponent(data.bundle_b64)}` : "";
+    // Clean, short share URL: e.g. https://q-safe-share.vercel.app/share/K8-Xv_2mP9A
+    const shortShareUrl = `${window.location.origin}${data.share_url}`;
     const credential = data.secret_key || data.private_key_pem || "";
-    const keyFragment = credential ? `key=${encodeURIComponent(credential)}` : "";
+    // 1-Click link: appends only #key=password to the short URL
+    const unifiedUrl = credential ? `${shortShareUrl}#key=${encodeURIComponent(credential)}` : shortShareUrl;
 
-    let hashParts = [];
-    if (bundleFragment) hashParts.push(bundleFragment);
-    const fullShareUrl = hashParts.length > 0 ? `${baseShareUrl}#${hashParts.join("&")}` : baseShareUrl;
+    // Optional self-contained bundle for offline use
+    const bundleFragment = data.bundle_b64 ? `b=${encodeURIComponent(data.bundle_b64)}` : "";
+    const offlineUrl = bundleFragment ? `${shortShareUrl}#${bundleFragment}` : shortShareUrl;
 
-    let unifiedParts = [...hashParts];
-    if (keyFragment) unifiedParts.push(keyFragment);
-    const unifiedUrl = unifiedParts.length > 0 ? `${baseShareUrl}#${unifiedParts.join("&")}` : baseShareUrl;
-
-    data.full_share_url = fullShareUrl;
-    data.unified_url = unifiedUrl;
+    data.short_share_url = shortShareUrl;
+    data.full_share_url = shortShareUrl; // Clean short URL for display and copying
+    data.unified_url = unifiedUrl;       // Short 1-click URL
+    data.offline_url = offlineUrl;       // Self-contained offline URL
 
     saveGeneratedLinkLocally({
       id: data.share_token,
@@ -1260,8 +1259,9 @@ async function handleCreateLinkSubmit(e) {
       max_downloads: data.max_downloads,
       download_count: 0,
       share_url: data.share_url,
-      full_share_url: fullShareUrl,
+      full_share_url: shortShareUrl,
       unified_url: unifiedUrl,
+      offline_url: offlineUrl,
       secret_key: data.secret_key,
       bundle_b64: data.bundle_b64,
     });
@@ -1397,7 +1397,14 @@ function copyUnifiedLinkWithKey() {
   if (!currentGeneratedLinkData) return;
   const unifiedUrl = currentGeneratedLinkData.unified_url || `${window.location.origin}${currentGeneratedLinkData.share_url}`;
   navigator.clipboard.writeText(unifiedUrl).then(() => {
-    showToast("1-Click Unified Link copied to clipboard!", "success");
+    showToast("1-Click Short Link copied to clipboard!", "success");
+  });
+}
+
+function copyOfflineLink() {
+  if (!currentGeneratedLinkData || !currentGeneratedLinkData.offline_url) return;
+  navigator.clipboard.writeText(currentGeneratedLinkData.offline_url).then(() => {
+    showToast("Offline self-contained link copied!", "info");
   });
 }
 
@@ -1439,8 +1446,8 @@ async function loadMyLinks() {
     }
 
     tbody.innerHTML = links.map(l => {
-      const fullUrl = l.full_share_url || `${window.location.origin}/share/${l.id}`;
-      const linkHref = l.full_share_url || `/share/${l.id}`;
+      const fullUrl = `${window.location.origin}/share/${l.id}`;
+      const linkHref = `/share/${l.id}`;
       let statusBadge = `<span class="badge badge-allowed">Active</span>`;
       let revokeBtn = `<button class="btn btn-danger btn-sm" onclick="revokeLink('${l.id}')">Revoke Link</button>`;
 
