@@ -370,9 +370,14 @@ class PolicyRepository:
             return {"is_authorized": False, "reason": "REVOKED", "policy": policy}
 
         if policy.get("expires_at"):
-            now_iso = datetime.now(timezone.utc).isoformat()
-            if policy["expires_at"] <= now_iso:
-                return {"is_authorized": False, "reason": "EXPIRED", "policy": policy}
+            try:
+                exp_dt = datetime.fromisoformat(policy["expires_at"].replace("Z", "+00:00"))
+                if datetime.now(timezone.utc) >= exp_dt:
+                    return {"is_authorized": False, "reason": "EXPIRED", "policy": policy}
+            except Exception:
+                now_iso = datetime.now(timezone.utc).isoformat()
+                if policy["expires_at"] <= now_iso:
+                    return {"is_authorized": False, "reason": "EXPIRED", "policy": policy}
 
         return {"is_authorized": True, "reason": "ALLOWED", "policy": policy}
 
@@ -629,9 +634,14 @@ class LinkRepository:
             return {"is_valid": False, "status": "REVOKED", "reason": "This secure link has been revoked by the sender."}
 
         if link.get("expires_at"):
-            now_iso = datetime.now(timezone.utc).isoformat()
-            if link["expires_at"] <= now_iso:
-                return {"is_valid": False, "status": "EXPIRED", "reason": "This secure link has expired."}
+            try:
+                exp_dt = datetime.fromisoformat(link["expires_at"].replace("Z", "+00:00"))
+                if datetime.now(timezone.utc) >= exp_dt:
+                    return {"is_valid": False, "status": "EXPIRED", "reason": "This secure link has expired."}
+            except Exception:
+                now_iso = datetime.now(timezone.utc).isoformat()
+                if link["expires_at"] <= now_iso:
+                    return {"is_valid": False, "status": "EXPIRED", "reason": "This secure link has expired."}
 
         if link.get("max_downloads") and link["download_count"] >= link["max_downloads"]:
             return {"is_valid": False, "status": "LIMIT_REACHED", "reason": "Maximum download limit for this link has been reached."}

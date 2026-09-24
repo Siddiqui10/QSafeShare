@@ -1048,7 +1048,7 @@ function openCreateLinkModal(fileId) {
   if (customPubkey) customPubkey.value = "";
 
   const expirySelect = document.getElementById("linkExpirySelect");
-  if (expirySelect) expirySelect.value = "24";
+  if (expirySelect) expirySelect.value = "";
 
   const maxDlSelect = document.getElementById("linkMaxDownloadsSelect");
   if (maxDlSelect) maxDlSelect.value = "";
@@ -1232,9 +1232,39 @@ async function handleCreateLinkSubmit(e) {
     }
 
     currentGeneratedLinkData = data;
-    const fullShareUrl = `${window.location.origin}${data.share_url}`;
-    const credential = data.private_key_pem || data.secret_key || "";
-    const unifiedUrl = credential ? `${fullShareUrl}#key=${encodeURIComponent(credential)}` : fullShareUrl;
+    const baseShareUrl = `${window.location.origin}${data.share_url}`;
+    const bundleFragment = data.bundle_b64 ? `b=${encodeURIComponent(data.bundle_b64)}` : "";
+    const credential = data.secret_key || data.private_key_pem || "";
+    const keyFragment = credential ? `key=${encodeURIComponent(credential)}` : "";
+
+    let hashParts = [];
+    if (bundleFragment) hashParts.push(bundleFragment);
+    const fullShareUrl = hashParts.length > 0 ? `${baseShareUrl}#${hashParts.join("&")}` : baseShareUrl;
+
+    let unifiedParts = [...hashParts];
+    if (keyFragment) unifiedParts.push(keyFragment);
+    const unifiedUrl = unifiedParts.length > 0 ? `${baseShareUrl}#${unifiedParts.join("&")}` : baseShareUrl;
+
+    data.full_share_url = fullShareUrl;
+    data.unified_url = unifiedUrl;
+
+    saveGeneratedLinkLocally({
+      id: data.share_token,
+      file_id: fileId,
+      original_filename: data.filename,
+      file_size: data.file_size,
+      protection_mode: data.protection_mode,
+      kem_algorithm: data.kem_algorithm,
+      created_at: new Date().toISOString(),
+      expires_at: data.expires_at,
+      max_downloads: data.max_downloads,
+      download_count: 0,
+      share_url: data.share_url,
+      full_share_url: fullShareUrl,
+      unified_url: unifiedUrl,
+      secret_key: data.secret_key,
+      bundle_b64: data.bundle_b64,
+    });
 
     if (data.secret_key) {
       resultArea.innerHTML = `
@@ -1319,9 +1349,26 @@ async function handleCreateLinkSubmit(e) {
   }
 }
 
+function saveGeneratedLinkLocally(link) {
+  try {
+    const saved = JSON.parse(localStorage.getItem("qsafeshare_saved_links") || "[]");
+    const filtered = saved.filter(l => l.id !== link.id);
+    filtered.unshift(link);
+    localStorage.setItem("qsafeshare_saved_links", JSON.stringify(filtered.slice(0, 50)));
+  } catch (_) {}
+}
+
+function getSavedLinksLocally() {
+  try {
+    return JSON.parse(localStorage.getItem("qsafeshare_saved_links") || "[]");
+  } catch (_) {
+    return [];
+  }
+}
+
 function copyGeneratedLink() {
   if (!currentGeneratedLinkData) return;
-  const fullShareUrl = `${window.location.origin}${currentGeneratedLinkData.share_url}`;
+  const fullShareUrl = currentGeneratedLinkData.full_share_url || `${window.location.origin}${currentGeneratedLinkData.share_url}`;
   navigator.clipboard.writeText(fullShareUrl).then(() => {
     showToast("Share link copied to clipboard!", "success");
   });
@@ -1338,7 +1385,7 @@ function copyGeneratedKey() {
 
 function copyUnifiedLinkWithPassword() {
   if (!currentGeneratedLinkData) return;
-  const fullShareUrl = `${window.location.origin}${currentGeneratedLinkData.share_url}`;
+  const fullShareUrl = currentGeneratedLinkData.full_share_url || `${window.location.origin}${currentGeneratedLinkData.share_url}`;
   const pass = currentGeneratedLinkData.secret_key || "";
   const text = `📁 QSafeShare Secure File Access:\nLink: ${fullShareUrl}\nPassword: ${pass}`;
   navigator.clipboard.writeText(text).then(() => {
@@ -1348,9 +1395,7 @@ function copyUnifiedLinkWithPassword() {
 
 function copyUnifiedLinkWithKey() {
   if (!currentGeneratedLinkData) return;
-  const fullShareUrl = `${window.location.origin}${currentGeneratedLinkData.share_url}`;
-  const key = currentGeneratedLinkData.private_key_pem || currentGeneratedLinkData.secret_key || "";
-  const unifiedUrl = `${fullShareUrl}#key=${encodeURIComponent(key)}`;
+  const unifiedUrl = currentGeneratedLinkData.unified_url || `${window.location.origin}${currentGeneratedLinkData.share_url}`;
   navigator.clipboard.writeText(unifiedUrl).then(() => {
     showToast("1-Click Unified Link copied to clipboard!", "success");
   });
@@ -1375,7 +1420,18 @@ async function loadMyLinks() {
   tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;">Loading your active sharing links...</td></tr>`;
 
   try {
-    const links = await apiRequest("/api/links/my-links");
+    let links = [];
+    try {
+      links = await apiRequest("/api/links/my-links");
+    } catch (_) {}
+
+    const localLinks = getSavedLinksLocally();
+    const serverIds = new Set(links.map(l => l.id));
+    for (const ll of localLinks) {
+      if (!serverIds.has(ll.id)) {
+        links.unshift(ll);
+      }
+    }
 
     if (links.length === 0) {
       tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 2.5rem; color:var(--text-dim);">No sharing links created yet. Click <strong>🔗 Secure Link</strong> on any file in "My Files" to create one.</td></tr>`;
@@ -1383,7 +1439,8 @@ async function loadMyLinks() {
     }
 
     tbody.innerHTML = links.map(l => {
-      const fullUrl = `${window.location.origin}/share/${l.id}`;
+      const fullUrl = l.full_share_url || `${window.location.origin}/share/${l.id}`;
+      const linkHref = l.full_share_url || `/share/${l.id}`;
       let statusBadge = `<span class="badge badge-allowed">Active</span>`;
       let revokeBtn = `<button class="btn btn-danger btn-sm" onclick="revokeLink('${l.id}')">Revoke Link</button>`;
 
@@ -1413,8 +1470,8 @@ async function loadMyLinks() {
           <td>
             <div style="display:flex; align-items:center; gap:0.4rem;">
               <code style="font-size:0.75rem; color:var(--pqc-cyan);">/share/${l.id}</code>
-              <button class="btn btn-secondary btn-sm" style="padding:0.15rem 0.4rem; font-size:0.7rem;" onclick="navigator.clipboard.writeText('${fullUrl}').then(() => showToast('Link copied!','success'))">📋</button>
-              <a href="/share/${l.id}" target="_blank" class="btn btn-secondary btn-sm" style="padding:0.15rem 0.4rem; font-size:0.7rem;" title="Open recipient page">↗️</a>
+              <button class="btn btn-secondary btn-sm" style="padding:0.15rem 0.4rem; font-size:0.7rem;" onclick="navigator.clipboard.writeText('${escapeHtml(fullUrl)}').then(() => showToast('Link copied!','success'))">📋</button>
+              <a href="${escapeHtml(linkHref)}" target="_blank" class="btn btn-secondary btn-sm" style="padding:0.15rem 0.4rem; font-size:0.7rem;" title="Open recipient page">↗️</a>
             </div>
           </td>
           <td>${modeBadge}</td>

@@ -18,7 +18,7 @@ from app.crypto.utils import b64_encode, b64_decode, sha256_bytes
 from app.database.repositories import LinkRepository, FileRepository, UserRepository
 from app.services.file_service import FileService
 from app.agents import policy_agent_instance, coordinator_agent_instance, audit_agent_instance
-from app.config import DEFAULT_KEM_ALGORITHM
+from app.config import DEFAULT_KEM_ALGORITHM, UPLOAD_DIR
 
 
 class LinkService:
@@ -96,6 +96,43 @@ class LinkService:
             file_name=file_info["original_filename"],
         )
 
+        # Retrieve ciphertext for stateless bundle
+        ciphertext_payload = file_info.get("encrypted_blob")
+        if isinstance(ciphertext_payload, memoryview):
+            ciphertext_payload = bytes(ciphertext_payload)
+        if not ciphertext_payload and file_info.get("stored_path"):
+            sp = Path(file_info["stored_path"])
+            if sp.exists():
+                try:
+                    with open(sp, "rb") as f:
+                        ciphertext_payload = f.read()
+                except Exception:
+                    pass
+
+        bundle_b64 = None
+        if ciphertext_payload and len(ciphertext_payload) <= 4 * 1024 * 1024:
+            import gzip, json
+            bundle_dict = {
+                "v": 1,
+                "tok": share_token,
+                "fid": file_id,
+                "fn": file_info["original_filename"],
+                "sz": file_info["file_size"],
+                "mt": file_info["mime_type"],
+                "sha": file_info["sha256_checksum"],
+                "mode": "ML_KEM",
+                "kalg": kem_algorithm,
+                "kct": b64_encode(kem_ciphertext),
+                "wn": b64_encode(wrap_nonce),
+                "wk": b64_encode(wrapped_file_key),
+                "fnn": file_info["file_nonce_b64"],
+                "exp": expires_at,
+                "max": max_downloads,
+                "ct": b64_encode(ciphertext_payload),
+            }
+            comp = gzip.compress(json.dumps(bundle_dict).encode("utf-8"), compresslevel=9)
+            bundle_b64 = b64_encode(comp)
+
         return {
             "share_token": share_token,
             "share_url": f"/share/{share_token}",
@@ -109,6 +146,7 @@ class LinkService:
             "max_downloads": max_downloads,
             "filename": file_info["original_filename"],
             "file_size": file_info["file_size"],
+            "bundle_b64": bundle_b64,
         }
 
     @staticmethod
@@ -168,6 +206,42 @@ class LinkService:
             file_name=file_info["original_filename"],
         )
 
+        # Retrieve ciphertext for stateless bundle
+        ciphertext_payload = file_info.get("encrypted_blob")
+        if isinstance(ciphertext_payload, memoryview):
+            ciphertext_payload = bytes(ciphertext_payload)
+        if not ciphertext_payload and file_info.get("stored_path"):
+            sp = Path(file_info["stored_path"])
+            if sp.exists():
+                try:
+                    with open(sp, "rb") as f:
+                        ciphertext_payload = f.read()
+                except Exception:
+                    pass
+
+        bundle_b64 = None
+        if ciphertext_payload and len(ciphertext_payload) <= 4 * 1024 * 1024:
+            import gzip, json
+            bundle_dict = {
+                "v": 1,
+                "tok": share_token,
+                "fid": file_id,
+                "fn": file_info["original_filename"],
+                "sz": file_info["file_size"],
+                "mt": file_info["mime_type"],
+                "sha": file_info["sha256_checksum"],
+                "mode": "SECRET_KEY",
+                "wn": b64_encode(wrap_nonce),
+                "wk": b64_encode(wrapped_file_key),
+                "s": salt,
+                "fnn": file_info["file_nonce_b64"],
+                "exp": expires_at,
+                "max": max_downloads,
+                "ct": b64_encode(ciphertext_payload),
+            }
+            comp = gzip.compress(json.dumps(bundle_dict).encode("utf-8"), compresslevel=9)
+            bundle_b64 = b64_encode(comp)
+
         return {
             "share_token": share_token,
             "share_url": f"/share/{share_token}",
@@ -177,6 +251,7 @@ class LinkService:
             "max_downloads": max_downloads,
             "filename": file_info["original_filename"],
             "file_size": file_info["file_size"],
+            "bundle_b64": bundle_b64,
         }
 
     @staticmethod
@@ -273,6 +348,8 @@ class LinkService:
 
         # 3. Read encrypted payload (from database blob or disk storage)
         ciphertext_payload = link.get("encrypted_blob")
+        if isinstance(ciphertext_payload, memoryview):
+            ciphertext_payload = bytes(ciphertext_payload)
         if not ciphertext_payload and link.get("stored_path"):
             stored_path = Path(link["stored_path"])
             if stored_path.exists():
@@ -362,3 +439,202 @@ class LinkService:
             file_name=link["original_filename"],
         )
         return revoked
+
+    @staticmethod
+    def inspect_bundle(bundle_b64: str) -> Dict[str, Any]:
+        """Inspect a self-healing link bundle and return public metadata without exposing keys."""
+        import gzip, json
+        try:
+            raw_bytes = b64_decode(bundle_b64.strip())
+            decompressed = gzip.decompress(raw_bytes)
+            data = json.loads(decompressed.decode("utf-8"))
+        except Exception as e:
+            return {"exists": False, "is_valid": False, "status": "INVALID_BUNDLE", "reason": f"Malformed or corrupted link bundle: {str(e)}"}
+
+        exp = data.get("exp")
+        is_valid = True
+        status = "ACTIVE"
+        reason = ""
+        if exp:
+            try:
+                exp_dt = datetime.fromisoformat(exp.replace("Z", "+00:00"))
+                if datetime.now(timezone.utc) >= exp_dt:
+                    is_valid = False
+                    status = "EXPIRED"
+                    reason = f"This secure link expired on {exp_dt.strftime('%b %d, %Y %H:%M UTC')}."
+            except Exception:
+                now_iso = datetime.now(timezone.utc).isoformat()
+                if exp <= now_iso:
+                    is_valid = False
+                    status = "EXPIRED"
+                    reason = "This secure link has expired."
+
+        return {
+            "exists": True,
+            "is_valid": is_valid,
+            "status": status,
+            "reason": reason,
+            "share_token": data.get("tok", ""),
+            "filename": data.get("fn", "downloaded_file"),
+            "file_size": data.get("sz", 0),
+            "mime_type": data.get("mt", "application/octet-stream"),
+            "protection_mode": data.get("mode", "SECRET_KEY"),
+            "kem_algorithm": data.get("kalg", "ML-KEM-768"),
+            "expires_at": exp,
+            "max_downloads": data.get("max"),
+            "is_stateless": True,
+        }
+
+    @staticmethod
+    def decrypt_bundle_file(bundle_b64: str, credential: str) -> Dict[str, Any]:
+        """Decrypt file from self-healing stateless bundle and rehydrate serverless database."""
+        import gzip, json, hashlib, time
+        t_start = time.perf_counter()
+
+        try:
+            raw_bytes = b64_decode(bundle_b64.strip())
+            decompressed = gzip.decompress(raw_bytes)
+            data = json.loads(decompressed.decode("utf-8"))
+        except Exception as e:
+            return {"success": False, "status": "INVALID_BUNDLE", "message": "Corrupted or invalid sharing link bundle."}
+
+        # 1. Enforce Expiration
+        exp = data.get("exp")
+        if exp:
+            try:
+                exp_dt = datetime.fromisoformat(exp.replace("Z", "+00:00"))
+                if datetime.now(timezone.utc) >= exp_dt:
+                    return {"success": False, "status": "EXPIRED", "message": f"This secure link expired on {exp_dt.strftime('%b %d, %Y %H:%M UTC')}."}
+            except Exception:
+                now_iso = datetime.now(timezone.utc).isoformat()
+                if exp <= now_iso:
+                    return {"success": False, "status": "EXPIRED", "message": "This secure link has expired."}
+
+        mode = data.get("mode", "SECRET_KEY")
+        cred = credential.strip()
+
+        # 2. Key Unwrapping
+        t_unwrap_start = time.perf_counter()
+        try:
+            wrap_nonce = b64_decode(data["wn"])
+            wrapped_key = b64_decode(data["wk"])
+
+            if mode == "SECRET_KEY":
+                salt = data["s"]
+                kek = hashlib.pbkdf2_hmac("sha256", cred.encode("utf-8"), bytes.fromhex(salt), 100000)
+                file_key = SymmetricCrypto.unwrap_file_key(wrapped_key, wrap_nonce, kek)
+            elif mode == "ML_KEM":
+                kem_alg = data.get("kalg", "ML-KEM-768")
+                kem_ct = b64_decode(data["kct"])
+                shared_secret = PostQuantumKEM.decapsulate(
+                    private_key_pem=cred,
+                    ciphertext=kem_ct,
+                    algorithm=kem_alg,
+                )
+                kek = SymmetricCrypto.derive_kek(shared_secret)
+                file_key = SymmetricCrypto.unwrap_file_key(wrapped_key, wrap_nonce, kek)
+            else:
+                return {"success": False, "status": "ERROR", "message": f"Unsupported protection mode: {mode}"}
+            t_unwrap_ms = (time.perf_counter() - t_unwrap_start) * 1000.0
+        except Exception:
+            return {
+                "success": False,
+                "status": "INVALID_KEY",
+                "message": "Invalid password or cryptographic credentials. The file cannot be decrypted.",
+            }
+
+        # 3. Payload Decryption
+        ct_b64 = data.get("ct")
+        if not ct_b64:
+            return {"success": False, "status": "ERROR", "message": "Encrypted payload missing from link bundle."}
+
+        ciphertext = b64_decode(ct_b64)
+        file_nonce = b64_decode(data["fnn"])
+        associated_data = f"file_id:{data['fid']};filename:{data['fn']}".encode("utf-8")
+
+        t_dec_start = time.perf_counter()
+        try:
+            plaintext = SymmetricCrypto.decrypt_file_data(
+                nonce=file_nonce,
+                ciphertext_with_tag=ciphertext,
+                file_key=file_key,
+                associated_data=associated_data,
+            )
+            t_dec_ms = (time.perf_counter() - t_dec_start) * 1000.0
+        except Exception:
+            return {
+                "success": False,
+                "status": "DECRYPTION_FAILED",
+                "message": "Decryption failed. Authentication tag verification failed.",
+            }
+
+        # 4. Checksum verification
+        calc_sha = sha256_bytes(plaintext)
+        orig_sha = data["sha"]
+        verified = (calc_sha == orig_sha)
+
+        t_total_ms = (time.perf_counter() - t_start) * 1000.0
+
+        # 5. Self-Healing: Rehydrate this container's DB if missing
+        try:
+            token = data.get("tok")
+            if token and not LinkRepository.get_link(token):
+                fid = data["fid"]
+                if not FileRepository.get_by_id(fid):
+                    FileRepository.create_file(
+                        file_id=fid,
+                        owner_id=1,
+                        original_filename=data["fn"],
+                        stored_path=str(UPLOAD_DIR / f"{fid}.enc"),
+                        file_size=data["sz"],
+                        mime_type=data["mt"],
+                        sha256_checksum=orig_sha,
+                        encryption_algorithm="AES-256-GCM",
+                        file_nonce_b64=data["fnn"],
+                        encrypted_blob=ciphertext,
+                    )
+                LinkRepository.create_link(
+                    share_token=token,
+                    file_id=fid,
+                    creator_id=1,
+                    protection_mode=mode,
+                    kem_algorithm=data.get("kalg", "ML-KEM-768"),
+                    kem_ciphertext_b64=data.get("kct"),
+                    wrap_nonce_b64=data["wn"],
+                    wrapped_file_key_b64=data["wk"],
+                    secret_key_salt=data.get("s"),
+                    expires_at=data.get("exp"),
+                    max_downloads=data.get("max"),
+                )
+                LinkRepository.increment_download(token)
+        except Exception:
+            pass
+
+        audit_agent_instance.log(
+            action="LINK_BUNDLE_DECRYPTED",
+            status="SUCCESS",
+            details={
+                "share_token": data.get("tok"),
+                "filename": data["fn"],
+                "file_size": len(plaintext),
+                "protection_mode": mode,
+            },
+            file_id=data["fid"],
+            file_name=data["fn"],
+        )
+
+        return {
+            "success": True,
+            "status": "SUCCESS",
+            "filename": data["fn"],
+            "file_size": len(plaintext),
+            "mime_type": data["mt"],
+            "file_bytes": plaintext,
+            "calculated_sha256": calc_sha,
+            "original_sha256": orig_sha,
+            "verified": verified,
+            "unwrap_time_ms": round(t_unwrap_ms, 3),
+            "decrypt_time_ms": round(t_dec_ms, 3),
+            "total_time_ms": round(t_total_ms, 3),
+            "message": "File successfully decrypted and verified.",
+        }

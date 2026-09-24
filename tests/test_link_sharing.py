@@ -157,3 +157,127 @@ def test_download_limit_enforcement():
     res2 = LinkService.decrypt_link_file(token, "OneTimePass123")
     assert res2["success"] is False
     assert res2["status"] == "LIMIT_REACHED"
+
+
+def test_stateless_bundle_inspect_and_decrypt():
+    """Test zero-database stateless link bundle survival and decryption."""
+    alice = UserRepository.get_by_username("alice")
+    payload = b"Stateless Bundle Resilient Payload for Serverless Execution"
+    file_record = FileService.upload_and_encrypt(
+        owner_id=alice["id"],
+        filename="stateless_data.pdf",
+        file_bytes=payload,
+        mime_type="application/pdf",
+    )
+
+    link_info = LinkService.create_secret_key_link(
+        file_id=file_record["id"],
+        creator_id=alice["id"],
+        custom_secret_key="StatelessPass99!",
+        expires_in_hours=48.0,
+    )
+
+    bundle_b64 = link_info.get("bundle_b64")
+    assert bundle_b64 is not None
+
+    # Inspect bundle without credentials
+    inspect_res = LinkService.inspect_bundle(bundle_b64)
+    assert inspect_res["exists"] is True
+    assert inspect_res["is_valid"] is True
+    assert inspect_res["filename"] == "stateless_data.pdf"
+    assert inspect_res["protection_mode"] == "SECRET_KEY"
+
+    # Decrypt bundle with wrong key
+    wrong_res = LinkService.decrypt_bundle_file(bundle_b64, "WrongPassword")
+    assert wrong_res["success"] is False
+    assert wrong_res["status"] == "INVALID_KEY"
+
+    # Decrypt bundle with correct key
+    succ_res = LinkService.decrypt_bundle_file(bundle_b64, "StatelessPass99!")
+    assert succ_res["success"] is True
+    assert succ_res["file_bytes"] == payload
+    assert succ_res["verified"] is True
+    assert succ_res["calculated_sha256"] == file_record["sha256_checksum"]
+
+
+def test_stateless_bundle_expiration():
+    """Test that expired stateless bundles are rejected according to chosen expiration."""
+    from datetime import datetime, timezone, timedelta
+    import gzip, json
+    from app.crypto.utils import b64_encode
+
+    # Create a bundle with an expiration time in the past
+    past_iso = (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()
+    bundle_dict = {
+        "v": 1,
+        "tok": "expired_test_tok",
+        "fid": "fid-123",
+        "fn": "old.txt",
+        "sz": 10,
+        "mt": "text/plain",
+        "sha": "dummy",
+        "mode": "SECRET_KEY",
+        "wn": "dummy",
+        "wk": "dummy",
+        "s": "dummy",
+        "fnn": "dummy",
+        "exp": past_iso,
+        "max": None,
+        "ct": "dummy",
+    }
+    comp = gzip.compress(json.dumps(bundle_dict).encode("utf-8"))
+    bundle_b64 = b64_encode(comp)
+
+    # Inspect should report expired
+    insp = LinkService.inspect_bundle(bundle_b64)
+    assert insp["is_valid"] is False
+    assert insp["status"] == "EXPIRED"
+
+    # Decrypt should reject with EXPIRED
+    dec = LinkService.decrypt_bundle_file(bundle_b64, "any_key")
+    assert dec["success"] is False
+    assert dec["status"] == "EXPIRED"
+
+
+def test_stateless_api_endpoints_e2e():
+    """Test full HTTP API endpoint flow for inspecting and decrypting stateless bundles."""
+    from fastapi.testclient import TestClient
+    from app.main import app
+
+    client = TestClient(app)
+    alice = UserRepository.get_by_username("alice")
+    payload = b"Payload for API Endpoint Stateless Bundle Testing"
+    file_record = FileService.upload_and_encrypt(
+        owner_id=alice["id"],
+        filename="api_test.txt",
+        file_bytes=payload,
+        mime_type="text/plain",
+    )
+
+    link_info = LinkService.create_secret_key_link(
+        file_id=file_record["id"],
+        creator_id=alice["id"],
+        custom_secret_key="ApiSecretPass2026!",
+        expires_in_hours=72.0,
+    )
+    bundle_b64 = link_info["bundle_b64"]
+
+    # 1. POST /api/links/inspect-bundle
+    resp = client.post("/api/links/inspect-bundle", json={"bundle": bundle_b64})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["exists"] is True
+    assert data["is_valid"] is True
+    assert data["filename"] == "api_test.txt"
+
+    # 2. POST /api/links/decrypt-bundle with wrong password -> 403
+    resp_wrong = client.post("/api/links/decrypt-bundle", json={"bundle": bundle_b64, "credential": "bad_password"})
+    assert resp_wrong.status_code == 403
+
+    # 3. POST /api/links/decrypt-bundle with correct password -> 200
+    resp_succ = client.post("/api/links/decrypt-bundle", json={"bundle": bundle_b64, "credential": "ApiSecretPass2026!"})
+    assert resp_succ.status_code == 200
+    data_succ = resp_succ.json()
+    assert data_succ["success"] is True
+    assert data_succ["filename"] == "api_test.txt"
+    assert data_succ["verified"] is True

@@ -4,7 +4,7 @@
 [![Cipher](https://img.shields.io/badge/Cipher-AES--256--GCM-10b981.svg)](https://csrc.nist.gov/publications/detail/sp/800-38d/final)
 [![Python](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/Framework-FastAPI-009688.svg)](https://fastapi.tiangolo.com/)
-[![Tests](https://img.shields.io/badge/Tests-25%2F25%20Passing-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/Tests-28%2F28%20Passing-brightgreen.svg)]()
 [![Deployment](https://img.shields.io/badge/Deployment-Vercel%20Live-black.svg)](https://q-safe-share.vercel.app/)
 
 > **Live Deployment:** [https://q-safe-share.vercel.app/](https://q-safe-share.vercel.app/)  
@@ -125,7 +125,11 @@ When Alice shares with Bob:
 
 ### 4. Public Link Sharing & Burn-After-Reading Protection
 1. Sender generates a secure sharing link with optional custom password protection and download limits.
-2. Link recipient visits `/share/{token}`, enters the access password/key, and receives the verified decrypted file directly in browser.
+2. **Self-Healing Stateless Resilience (Zero-DB Serverless Survival)**:
+   - File metadata, nonces, key wrap package, user-defined expiration (e.g. 24h, 7 days, 30 days, or Perpetual), and ciphertext payload are compressed into a compact bundle encoded in the URL hash fragment (`#b=...`).
+   - Because hash fragments are never sent over HTTP to the server, links remain lightweight and completely immune to serverless container recycles or cold-start ephemeral disk resets on platforms like Vercel.
+   - When a recipient opens the link, the system checks whether the configured expiration time has passed. If active, the file is unlocked, decrypted, and verified bit-exact with SHA-256.
+   - The active serverless container automatically rehydrates its local database cache from the bundle upon first unlock.
 3. If max download count is reached (e.g. 1-download burn after reading) or link is expired, Policy Agent permanently refuses further access.
 
 ---
@@ -254,7 +258,7 @@ http://127.0.0.1:8000
 ```bash
 pytest -v
 ```
-All **25 unit and integration tests** cover:
+All **28 unit and integration tests** cover:
 - Native NIST ML-KEM-768 and ML-KEM-1024 encapsulation/decapsulation
 - AES-256-GCM authenticated encryption & tamper detection
 - Sender, Policy, Coordinator, and Audit multi-agent pipeline

@@ -126,34 +126,82 @@
   <script>
     const shareToken = window.location.pathname.split("/share/")[1]?.split("?")[0]?.split("#")[0];
 
-    // Check if key is passed in URL fragment (e.g. #key=...)
+    // Check if bundle or key is passed in URL fragment (e.g. #b=... or #key=...)
+    let fragmentBundle = "";
     let fragmentKey = "";
-    if (window.location.hash && window.location.hash.includes("key=")) {
-      fragmentKey = decodeURIComponent(window.location.hash.split("key=")[1].split("&")[0]);
+    if (window.location.hash) {
+      const hashContent = window.location.hash.startsWith("#") ? window.location.hash.substring(1) : window.location.hash;
+      const urlParams = new URLSearchParams(hashContent);
+      if (urlParams.get("b")) {
+        fragmentBundle = urlParams.get("b");
+      }
+      if (urlParams.get("key")) {
+        fragmentKey = urlParams.get("key");
+      }
     }
 
+    let isStatelessMode = false;
+    let currentLinkInfo = null;
+
     document.addEventListener("DOMContentLoaded", async () => {
-      if (!shareToken) {
-        renderError("Invalid link format.");
-        return;
-      }
       await loadLinkInfo();
     });
 
     async function loadLinkInfo() {
       const container = document.getElementById("shareBoxContainer");
       try {
-        const res = await fetch(`/api/links/${shareToken}/info`);
-        if (!res.ok) {
-          const err = await res.json();
-          renderError(err.detail || "Link not found or expired.");
-          return;
+        // 1. Try server database lookup
+        if (shareToken) {
+          const res = await fetch(`/api/links/${shareToken}/info`);
+          if (res.ok) {
+            const info = await res.json();
+            currentLinkInfo = info;
+            isStatelessMode = false;
+            renderLinkPage(info);
+            return;
+          }
         }
 
-        const info = await res.json();
-        renderLinkPage(info);
+        // 2. If server database does not have the link (e.g. serverless container cold start),
+        // inspect the self-healing link bundle in URL fragment
+        if (fragmentBundle) {
+          const bRes = await fetch("/api/links/inspect-bundle", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ bundle: fragmentBundle }),
+          });
+          if (bRes.ok) {
+            const bInfo = await bRes.json();
+            currentLinkInfo = bInfo;
+            isStatelessMode = true;
+            renderLinkPage(bInfo);
+            return;
+          } else {
+            const bErr = await bRes.json();
+            renderError(bErr.detail || "This secure sharing link is invalid or corrupted.");
+            return;
+          }
+        }
+
+        renderError("Secure sharing link not found or expired.");
       } catch (err) {
-        renderError(err.message);
+        if (fragmentBundle) {
+          try {
+            const bRes = await fetch("/api/links/inspect-bundle", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ bundle: fragmentBundle }),
+            });
+            if (bRes.ok) {
+              const bInfo = await bRes.json();
+              currentLinkInfo = bInfo;
+              isStatelessMode = true;
+              renderLinkPage(bInfo);
+              return;
+            }
+          } catch (_) {}
+        }
+        renderError(err.message || "Failed to load secure link.");
       }
     }
 
@@ -311,26 +359,42 @@
       `;
 
       try {
-        const res = await fetch(`/api/links/${shareToken}/decrypt`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ credential: cred }),
-        });
+        let res;
+        if (isStatelessMode && fragmentBundle) {
+          res = await fetch("/api/links/decrypt-bundle", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ bundle: fragmentBundle, credential: cred }),
+          });
+        } else {
+          res = await fetch(`/api/links/${shareToken}/decrypt`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ credential: cred }),
+          });
+
+          // Self-healing fallback: If server returns 404 (container reset), retry with bundle
+          if (!res.ok && res.status === 404 && fragmentBundle) {
+            res = await fetch("/api/links/decrypt-bundle", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ bundle: fragmentBundle, credential: cred }),
+            });
+          }
+        }
 
         if (!res.ok) {
           const err = await res.json();
           let msg = err.detail || "Decryption failed.";
-          if (!isMlkem) {
-            const lower = msg.toLowerCase();
-            if (lower.includes("expired")) {
-              msg = "⏰ This secure link has expired. Please ask the sender to create a new link.";
-            } else if (lower.includes("limit") || lower.includes("reach")) {
-              msg = "🚫 Maximum download limit for this link has been reached.";
-            } else if (lower.includes("revok")) {
-              msg = "🚫 This link has been revoked by the file owner.";
-            } else if (lower.includes("key") || lower.includes("credential") || lower.includes("mismatch") || lower.includes("tag") || lower.includes("invalid")) {
-              msg = "🔑 Incorrect password! Please check the password and try again.";
-            }
+          const lower = msg.toLowerCase();
+          if (lower.includes("expired")) {
+            msg = "⏰ This secure link has expired. Please ask the sender to create a new link.";
+          } else if (lower.includes("limit") || lower.includes("reach")) {
+            msg = "🚫 Maximum download limit for this link has been reached.";
+          } else if (lower.includes("revok")) {
+            msg = "🚫 This link has been revoked by the file owner.";
+          } else if (lower.includes("key") || lower.includes("credential") || lower.includes("mismatch") || lower.includes("tag") || lower.includes("invalid") || lower.includes("password")) {
+            msg = isMlkem ? "🔑 Invalid cryptographic private key! Please verify your key file." : "🔑 Incorrect password! Please check the password and try again.";
           }
           throw new Error(msg);
         }

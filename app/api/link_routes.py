@@ -33,6 +33,15 @@ class DecryptLinkRequest(BaseModel):
     credential: str  # ML-KEM private key PEM or secret key string
 
 
+class InspectBundleRequest(BaseModel):
+    bundle: str
+
+
+class DecryptBundleRequest(BaseModel):
+    bundle: str
+    credential: str
+
+
 @router.post("/create-mlkem")
 def create_mlkem_link(
     req: CreateMlkemLinkRequest,
@@ -76,6 +85,58 @@ def create_secret_link(
 def get_my_links(current_user: Dict[str, Any] = Depends(get_current_user_from_header)):
     """List all active and revoked links created by the signed-in user."""
     return LinkRepository.list_by_creator(current_user["id"])
+
+
+@router.post("/inspect-bundle")
+def inspect_bundle(req: InspectBundleRequest):
+    """Public endpoint: Inspect self-healing link bundle for recipient access."""
+    info = LinkService.inspect_bundle(req.bundle)
+    if not info["exists"]:
+        raise HTTPException(status_code=400, detail=info.get("reason", "Invalid link bundle."))
+    return info
+
+
+@router.post("/decrypt-bundle")
+def decrypt_bundle(req: DecryptBundleRequest):
+    """Public endpoint: Decrypt file from self-healing stateless bundle."""
+    result = LinkService.decrypt_bundle_file(bundle_b64=req.bundle, credential=req.credential)
+    if not result["success"]:
+        status_code = 403 if result["status"] in ["EXPIRED", "INVALID_KEY", "LIMIT_REACHED"] else 400
+        raise HTTPException(status_code=status_code, detail=result["message"])
+
+    return {
+        "success": True,
+        "filename": result["filename"],
+        "file_size": result["file_size"],
+        "mime_type": result["mime_type"],
+        "calculated_sha256": result["calculated_sha256"],
+        "original_sha256": result["original_sha256"],
+        "verified": result["verified"],
+        "unwrap_time_ms": result["unwrap_time_ms"],
+        "decrypt_time_ms": result["decrypt_time_ms"],
+        "total_time_ms": result["total_time_ms"],
+        "file_data_b64": b64_encode(result["file_bytes"]),
+    }
+
+
+@router.post("/download-bundle")
+def download_bundle_file(
+    bundle: str = Form(...),
+    credential: str = Form(...),
+):
+    """Public endpoint: Stream decrypted binary file directly from bundle."""
+    result = LinkService.decrypt_bundle_file(bundle_b64=bundle, credential=credential)
+    if not result["success"]:
+        raise HTTPException(status_code=403, detail=result["message"])
+
+    filename = result["filename"]
+    mime_type = result["mime_type"] or "application/octet-stream"
+
+    return StreamingResponse(
+        io.BytesIO(result["file_bytes"]),
+        media_type=mime_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.get("/{share_token}/info")
