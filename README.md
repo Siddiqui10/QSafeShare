@@ -1,11 +1,18 @@
-# QSafeShare — Post-Quantum Secure Multi-Agent File Sharing
+<div align="center">
+  <img src="app/static/img/logo_128.png" width="96" height="96" alt="QSafeShare Logo" style="border-radius:20px;" />
+  <h1>QSafeShare</h1>
+  <p><strong>Post-Quantum Secure Multi-Agent File Sharing Platform</strong></p>
+  <p><em>NIST FIPS 203 (ML-KEM) Lattice Key Encapsulation &amp; AES-256-GCM Envelope Encryption</em></p>
 
-[![NIST FIPS 203](https://img.shields.io/badge/Standard-NIST%20FIPS%20203%20ML--KEM-06b6d4.svg)](https://csrc.nist.gov/pubs/fips/203/final)
-[![Cipher](https://img.shields.io/badge/Cipher-AES--256--GCM-10b981.svg)](https://csrc.nist.gov/publications/detail/sp/800-38d/final)
-[![Python](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](https://www.python.org/)
-[![FastAPI](https://img.shields.io/badge/Framework-FastAPI-009688.svg)](https://fastapi.tiangolo.com/)
-[![Tests](https://img.shields.io/badge/Tests-28%2F28%20Passing-brightgreen.svg)]()
-[![Deployment](https://img.shields.io/badge/Deployment-Vercel%20Live-black.svg)](https://q-safe-share.vercel.app/)
+  <p>
+    <a href="https://csrc.nist.gov/pubs/fips/203/final"><img src="https://img.shields.io/badge/Standard-NIST%20FIPS%20203%20ML--KEM-06b6d4.svg" alt="NIST FIPS 203" /></a>
+    <a href="https://csrc.nist.gov/publications/detail/sp/800-38d/final"><img src="https://img.shields.io/badge/Cipher-AES--256--GCM-10b981.svg" alt="Cipher" /></a>
+    <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.11%2B-blue.svg" alt="Python" /></a>
+    <a href="https://fastapi.tiangolo.com/"><img src="https://img.shields.io/badge/Framework-FastAPI-009688.svg" alt="FastAPI" /></a>
+    <img src="https://img.shields.io/badge/Tests-29%2F29%20Passing-brightgreen.svg" alt="Tests Passing" />
+    <a href="https://q-safe-share.vercel.app/"><img src="https://img.shields.io/badge/Deployment-Vercel%20Live-black.svg" alt="Deployment" /></a>
+  </p>
+</div>
 
 > **Live Deployment:** [https://q-safe-share.vercel.app/](https://q-safe-share.vercel.app/)  
 > **Source Repository:** [https://github.com/Siddiqui10/QSafeShare](https://github.com/Siddiqui10/QSafeShare)

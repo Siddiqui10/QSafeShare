@@ -59,6 +59,13 @@ def serve_index():
     return FileResponse(str(index_path))
 
 
+@app.get("/favicon.ico")
+def serve_favicon():
+    """Serve the application favicon."""
+    favicon_path = static_dir / "favicon.ico"
+    return FileResponse(str(favicon_path))
+
+
 @app.get("/share/{share_token}")
 @app.get("/s/{share_token}")
 def serve_share_page(share_token: str):

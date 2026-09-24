@@ -77,16 +77,19 @@ body {
 }
 
 .auth-brand-icon {
-  width: 52px;
-  height: 52px;
-  border-radius: var(--radius-md);
-  background: linear-gradient(135deg, var(--pqc-cyan), var(--pqc-purple));
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.8rem;
-  margin-bottom: 0.75rem;
-  box-shadow: 0 0 25px var(--pqc-cyan-glow);
+  width: 72px;
+  height: 72px;
+  border-radius: 18px;
+  display: inline-block;
+  margin-bottom: 0.85rem;
+  box-shadow: 0 0 25px var(--pqc-cyan-glow), 0 0 45px rgba(168, 85, 247, 0.35);
+  object-fit: cover;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+  user-select: none;
+}
+.auth-brand-icon:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 35px var(--pqc-cyan-glow), 0 0 60px rgba(168, 85, 247, 0.5);
 }
 
 .auth-tabs {
@@ -204,15 +207,18 @@ header {
 }
 
 .brand-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: var(--radius-md);
-  background: linear-gradient(135deg, var(--pqc-cyan), var(--pqc-purple));
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.3rem;
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  display: block;
   box-shadow: 0 0 15px var(--pqc-cyan-glow);
+  object-fit: cover;
+  flex-shrink: 0;
+  transition: transform 0.25s ease;
+  user-select: none;
+}
+.brand-icon:hover {
+  transform: scale(1.06);
 }
 
 .brand-title {
@@ -909,9 +915,9 @@ html, body {
   }
 
   .brand-icon {
-    width: 32px;
-    height: 32px;
-    font-size: 1.1rem;
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
   }
 
   .brand-title {
@@ -1058,9 +1064,9 @@ html, body {
   }
 
   .auth-brand-icon {
-    width: 44px;
-    height: 44px;
-    font-size: 1.5rem;
+    width: 58px;
+    height: 58px;
+    border-radius: 14px;
     margin-bottom: 0.5rem;
   }
 

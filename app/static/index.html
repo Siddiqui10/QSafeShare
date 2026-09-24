@@ -4,7 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>QSafeShare — Post-Quantum Secure Multi-Agent File Sharing</title>
-  <link rel="stylesheet" href="/static/css/style.css?v=1.2.0">
+  <link rel="icon" type="image/png" href="/static/img/favicon.png?v=1.3.0">
+  <link rel="apple-touch-icon" href="/static/img/logo_128.png?v=1.3.0">
+  <link rel="stylesheet" href="/static/css/style.css?v=1.3.0">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -35,7 +37,7 @@
   <div id="authOverlay" class="auth-overlay">
     <div class="auth-card">
       <div class="auth-header">
-        <div class="auth-brand-icon">⚛️</div>
+        <img src="/static/img/logo_128.png?v=1.3.0" alt="QSafeShare Logo" class="auth-brand-icon">
         <h2 style="font-size:1.4rem; font-weight:700; margin-bottom:0.25rem;">QSafeShare</h2>
         <p style="font-size:0.82rem; color:var(--text-dim);">Post-Quantum Secure Multi-Agent File Sharing</p>
       </div>
@@ -111,7 +113,7 @@
   <header>
     <div class="header-container">
       <div class="brand">
-        <div class="brand-icon">⚛️</div>
+        <img src="/static/img/logo_128.png?v=1.3.0" alt="QSafeShare Logo" class="brand-icon">
         <div>
           <div style="display:flex; align-items:center; gap:0.5rem;">
             <span class="brand-title">QSafeShare</span>
@@ -468,7 +470,7 @@
 
             <label id="modeCardMlkem" style="border:1px solid var(--border-color); border-radius:var(--radius-md); padding:0.85rem; cursor:pointer; background:var(--bg-secondary);">
               <input type="radio" name="linkProtectionMode" value="ML_KEM" onchange="toggleLinkProtectionMode(this.value)">
-              <strong style="color:var(--text-main); display:block; margin-top:0.25rem;">Option 2: ⚛️ Post-Quantum Key (NIST ML-KEM)</strong>
+              <strong style="color:var(--text-main); display:flex; align-items:center; gap:0.4rem; margin-top:0.25rem;">Option 2: <img src="/static/img/logo_128.png?v=1.3.0" style="width:18px; height:18px; border-radius:4px;" alt="PQ Logo"> Post-Quantum Key (NIST ML-KEM)</strong>
               <span style="font-size:0.75rem; color:var(--text-muted); display:block; margin-top:0.25rem;">Quantum-resistant lattice cryptography. Requires sharing the ML-KEM private key certificate with the recipient.</span>
             </label>
           </div>
@@ -618,8 +620,8 @@
   </div>
 
   <!-- Scripts -->
-  <script src="/static/js/app.js?v=1.2.0"></script>
-  <script src="/static/js/crypto_vault.js?v=1.2.0"></script>
-  <script src="/static/js/benchmarks.js?v=1.2.0"></script>
+  <script src="/static/js/app.js?v=1.3.0"></script>
+  <script src="/static/js/crypto_vault.js?v=1.3.0"></script>
+  <script src="/static/js/benchmarks.js?v=1.3.0"></script>
 </body>
 </html>
