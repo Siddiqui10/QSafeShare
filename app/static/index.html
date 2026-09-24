@@ -444,7 +444,7 @@
       <form id="createLinkForm">
         <div class="form-group">
           <label style="font-weight:600;">Link Protection Mode</label>
-          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:0.75rem;">
+          <div class="grid-2col-responsive">
             <label id="modeCardSecret" style="border:1px solid var(--pqc-cyan); border-radius:var(--radius-md); padding:0.85rem; cursor:pointer; background:rgba(6, 182, 212, 0.08);">
               <input type="radio" name="linkProtectionMode" value="SECRET_KEY" checked onchange="toggleLinkProtectionMode(this.value)">
               <strong style="color:var(--pqc-cyan); display:block; margin-top:0.25rem;">Option 1: 🔑 Password Protected (Recommended)</strong>
@@ -462,8 +462,8 @@
         <!-- Option 1: Secret Key / Password Options (Default) -->
         <div id="secretKeyLinkOptions" class="form-group" style="display:block; margin-top:1rem;">
           <label style="font-weight:600; color:var(--text-main); font-size:0.85rem;">Choose File Access Password</label>
-          <div style="display:flex; gap:0.5rem;">
-            <input type="text" id="customSecretKeyInput" class="form-control" placeholder="Type your password (e.g. MySecret123)" style="font-family:var(--font-mono); font-size:0.95rem; font-weight:600;">
+          <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+            <input type="text" id="customSecretKeyInput" class="form-control" placeholder="Type your password (e.g. MySecret123)" style="font-family:var(--font-mono); font-size:0.95rem; font-weight:600; flex:1; min-width:200px;">
             <button type="button" class="btn btn-secondary btn-sm" onclick="generateRandomPassphrase()">🎲 Generate Random</button>
           </div>
           <small style="color:var(--text-dim); font-size:0.75rem; margin-top:0.35rem; display:block;">
@@ -483,7 +483,7 @@
           </div>
         </div>
 
-        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:0.75rem;">
+        <div class="grid-2col-responsive">
           <div class="form-group">
             <label>Link Expiration</label>
             <select id="linkExpirySelect" class="form-control">

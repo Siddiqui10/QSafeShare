@@ -169,7 +169,7 @@ window.BenchmarkModule = {
       </div>
 
       <!-- Experiment 4 & 5: Access Matrix and File Integrity Grid -->
-      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap:1.5rem; margin-bottom:1.5rem;">
+      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap:1.5rem; margin-bottom:1.5rem;">
         
         <!-- Experiment 4: Policy Enforcement Matrix -->
         <div class="card" style="margin-bottom:0;">
@@ -238,7 +238,7 @@ window.BenchmarkModule = {
           <div class="card-title">6. Multi-Agent Architecture Overhead vs Monolithic Baseline</div>
           <span class="badge badge-pqc">Negligible Latency Overhead</span>
         </div>
-        <div class="benchmark-grid" style="grid-template-columns: repeat(3, 1fr); margin-bottom:1.25rem;">
+        <div class="benchmark-grid benchmark-metrics-grid" style="margin-bottom:1.25rem;">
           <div class="metric-card">
             <div class="metric-label">Monolithic Centralized Baseline</div>
             <div class="metric-value" style="font-size:1.4rem;">${agent_overhead.monolithic_centralized_ms} ms</div>

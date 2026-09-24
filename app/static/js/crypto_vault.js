@@ -15,7 +15,7 @@ window.VaultModule = {
       this.currentVault = vault;
 
       container.innerHTML = `
-        <div class="benchmark-grid" style="grid-template-columns: repeat(4, 1fr); margin-bottom:1.5rem;">
+        <div class="vault-metrics-grid" style="margin-bottom:1.5rem;">
           <div class="metric-card">
             <div class="metric-label">Algorithm Standard</div>
             <div class="metric-value" style="font-size:1.15rem; color:var(--pqc-cyan);">NIST FIPS 203</div>
@@ -35,7 +35,7 @@ window.VaultModule = {
         </div>
 
         <div style="margin-bottom:1.5rem;">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.4rem;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.4rem; flex-wrap:wrap; gap:0.5rem;">
             <label style="font-size:0.8rem; font-weight:600; text-transform:uppercase; color:var(--text-dim);">
               ML-KEM Public Key (SubjectPublicKeyInfo PEM) — Distributed to System
             </label>
@@ -45,7 +45,7 @@ window.VaultModule = {
         </div>
 
         <div style="margin-bottom:1.5rem;">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.4rem;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.4rem; flex-wrap:wrap; gap:0.5rem;">
             <label style="font-size:0.8rem; font-weight:600; text-transform:uppercase; color:var(--text-dim);">
               ML-KEM Private Key (PKCS8 PEM) — Client-Side Decapsulation Secret
             </label>
