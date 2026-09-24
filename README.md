@@ -134,18 +134,6 @@ When Alice shares with Bob:
 
 ---
 
-## 👥 Pre-Seeded Demo User Profiles
-
-For testing and evaluation, the following pre-configured personas are available:
-
-| Username | Role | Initial Status | Intended Demo Test |
-| :--- | :--- | :--- | :--- |
-| `alice` | File Owner / Sender | Active Owner | Uploads files, shares with recipients, revokes access. |
-| `bob` | Recipient | **Allowed ✓** | Downloads file, executes ML-KEM decapsulation, recovers plaintext with 100% SHA-256 match. |
-| `charlie` | Recipient | **Revoked ✗** | Attempts to download; immediately blocked by Policy Agent. Alice can reinstate Charlie with 1 click. |
-| `dave` | Recipient | **Expired ⏰** | Access window expired; blocked by Policy Agent. Alice can renew access (+24h). |
-| `eve` | Stranger | **Unauthorized 🚫** | Not in access policy; blocked by Policy Agent. |
-
 *Default password for all demo accounts: `password123`*
 
 ---
